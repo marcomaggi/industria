@@ -49,7 +49,7 @@
 
 ;; http://www.ietf.org/dyn/wg/charter/dnsext-charter.html
 
-(library (weinholt net dns (0 0 20100101))
+(library (weinholt net dns (0 0 20101121))
   (export print-dns-message
           make-normal-query
           put-dns-message
@@ -97,18 +97,14 @@
                   string-upcase string-downcase string-hash string-for-each)
           (srfi :14 char-sets)
           (srfi :19 time)
-          (srfi :27 random-bits)
+          (weinholt bytevectors)
+          (weinholt crypto entropy)
           (weinholt struct pack)
           (weinholt text base64)
           (weinholt text strings))
 
   (define (print . x) (for-each display x) (newline))
   (define (compose f g) (lambda (x) (f (g x))))
-
-  (define rand
-    (let ((s (make-random-source)))
-      (random-source-randomize! s)
-      (random-source-make-integers s)))
 
   (define ash fxarithmetic-shift-left)
 
@@ -318,10 +314,6 @@
     ;; AAAA records are lists with a single bytevector.
     (fields name type class ttl rdata))
 
-  (define (randomize-case name)
-    ;; draft-wijngaards-dnsext-resolver-side-mitigation-01
-    (string-map (lambda (c) ((if (zero? (rand 2)) char-upcase char-downcase) c))
-                name))
 
 ;;; DNS message encoding
 
@@ -711,11 +703,13 @@
 
   (define (make-normal-query qname qtype qclass edns?)
     ;; qname is a list of labels, e.g. ("slashdot" "org").
-    (make-dns-message (rand #x10000)
+    (make-dns-message (bytevector->uint (make-random-bytevector 2))
                       opcode-QUERY rcode-NOERROR
                       (fxior flag-recursion-desired
                              #;flag-checking-disabled) ;DNSSEC?
-                      (list (make-question (map (compose string->utf8 randomize-case)
+                      ;; draft-wijngaards-dnsext-resolver-side-mitigation-01
+                      (list (make-question (map (compose string->utf8
+                                                         string-random-case)
                                                 qname)
                                            qtype qclass))
                       '() '()

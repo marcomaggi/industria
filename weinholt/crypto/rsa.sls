@@ -24,7 +24,7 @@
 
 ;; But look at RFC 2313, it's easier to read...
 
-(library (weinholt crypto rsa (1 0 20100829))
+(library (weinholt crypto rsa (1 0 20101121))
   (export make-rsa-public-key
           rsa-public-key?
           rsa-public-key-modulus
@@ -44,24 +44,10 @@
           rsa-pkcs1-decrypt-signature
           rsa-pkcs1-decrypt-digest)
   (import (rnrs)
-          (srfi :27 random-bits)
           (weinholt bytevectors)
+          (weinholt crypto entropy)
           (weinholt crypto math)
           (prefix (weinholt struct der (0 0)) der:))
-
-  (define random-nonzero-byte
-    (let* ((s (make-random-source))
-           (make-int (random-source-make-integers s))
-           (urandom (and (file-exists? "/dev/urandom")
-                         (open-file-input-port "/dev/urandom"))))
-      (unless urandom
-        (random-source-randomize! s))
-      (lambda ()
-        (if urandom
-            (let lp ()
-              (let ((v (get-u8 urandom)))
-                (if (zero? v) (lp) v)))
-            (+ 1 (make-int 254))))))
 
   (define (RSAPublicKey)
     `(sequence (modulus integer)
@@ -153,7 +139,7 @@
       ;; Pad with random non-zero bytes
       (do ((i 2 (+ i 1)))
           ((= i end-of-PS))
-        (bytevector-u8-set! eb i (random-nonzero-byte)))
+        (bytevector-u8-set! eb i (random-positive-byte)))
 
       (bytevector-u8-set! eb end-of-PS 0)
 

@@ -26,7 +26,7 @@
 ;; TODO: finishing sessions.
 ;; TODO: let the library user decide what errors to send
 
-(library (weinholt net otr (0 0 20101024))
+(library (weinholt net otr (0 0 20101121))
   (export otr-message?
           otr-update!
           otr-send-encrypted!
@@ -46,7 +46,6 @@
                 string-index string-index-right string-pad
                 string-trim-right)
           (srfi :26 cut)
-          (srfi :27 random-bits)
           (srfi :39 parameters)
           (rename (weinholt bytevectors)
                   (bytevector=?/constant-time bytevector=?))

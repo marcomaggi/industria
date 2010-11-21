@@ -37,7 +37,7 @@
 ;; TODO: go through the implementation pitfalls in the RFC. check all
 ;; the MUSTs.
 
-(library (weinholt net tls (0 0 20101024))
+(library (weinholt net tls (0 0 20101121))
   (export make-tls-wrapper
           flush-tls-output
           put-tls-record get-tls-record
@@ -55,7 +55,6 @@
   (import (except (rnrs) bytevector=?)
           (only (srfi :1 lists) last)
           (srfi :19 time)
-          (srfi :27 random-bits)
           (rename (weinholt bytevectors)
                   (bytevector=?/constant-time bytevector=?))
           (weinholt crypto aes)
@@ -289,34 +288,32 @@
 
   ;; Make a new TLS connection state.
   (define (make-tls-wrapper in out server-name)
-    (let ((random-source (make-random-source)))
-      (random-source-randomize! random-source)
-      (make-tls-conn '()
-                     (car supported-cipher-suites)
-                     (car supported-cipher-suites)
-                     (car supported-cipher-suites)
+    (make-tls-conn '()
+                   (car supported-cipher-suites)
+                   (car supported-cipher-suites)
+                   (car supported-cipher-suites)
 
-                     0 0
-                     TLS-VERSION
+                   0 0
+                   TLS-VERSION
 
-                     'no-master-secret-yet
-                     'no-client-random
-                     'no-client-write-mac-secret-yet
-                     'no-client-write-key-yet
-                     'no-client-write-IV-yet
-                     'no-server-random
-                     'no-server-write-mac-secret-yet
-                     'no-server-write-key-yet
-                     'no-server-write-IV-yet
-                     'no-server-DH-params-yet #f #f
+                   'no-master-secret-yet
+                   'no-client-random
+                   'no-client-write-mac-secret-yet
+                   'no-client-write-key-yet
+                   'no-client-write-IV-yet
+                   'no-server-random
+                   'no-server-write-mac-secret-yet
+                   'no-server-write-key-yet
+                   'no-server-write-IV-yet
+                   'no-server-DH-params-yet #f #f
 
-                     (make-md5)
-                     (make-sha-1)
-                     server-name
-                     (make-buffer in)
-                     out
-                     (make-bytevector (+ (expt 2 14) 2048))
-                     (make-buffer 'handshakes))))
+                   (make-md5)
+                   (make-sha-1)
+                   server-name
+                   (make-buffer in)
+                   out
+                   (make-bytevector (+ (expt 2 14) 2048))
+                   (make-buffer 'handshakes)))
 
   (define (close-tls conn)
     ;; TODO: clear the connection state
