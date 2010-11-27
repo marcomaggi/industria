@@ -53,3 +53,9 @@ size.
 
 This is a new disassembler for Intel 8080/8085, which was the
 predecessor of the Intel 8086.
+
+** (weinholt disassembler x86): Limit get-instruction to 15 bytes
+
+Instructions on the x86 can at most be 15 bytes long. Previously this
+limit was not enforced by get-instruction. Overlong instructions now
+raise &invalid-opcode as expected.

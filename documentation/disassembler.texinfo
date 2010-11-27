@@ -177,6 +177,8 @@ Version history:
 @itemize
 @item
 @code{(1 0)} -- Initial version.
+@item
+@code{(1 1)} -- @code{get-instruction} reads at most 15 bytes.
 @end itemize
 
 

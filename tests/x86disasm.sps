@@ -729,4 +729,65 @@
         '(xchg r8d eax)
         '(xchg r8w ax))
 
+;;; Instruction encodings that are too long
+
+(define (test/error mode input)
+  (let ((read 0)
+        (port (open-bytevector-input-port input)))
+    (let ((status
+           (guard (exn
+                   ((invalid-opcode? exn)
+                    (condition-message exn))
+                   (else exn))
+             (get-instruction port
+                              mode
+                              (lambda (tag . bytes)
+                                (set! read (+ read (length bytes))))))))
+      (let* ((bv (get-bytevector-all port))
+             (unread (if (eof-object? bv) 0 (bytevector-length bv))))
+        (cond ((not (= (bytevector-length input) (+ read unread)))
+               (list 'imbalance read unread))
+              ((> read 15)
+               (list 'read-too-much read))
+              (else status))))))
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36))
+       => "End of file inside instruction")
+
+;; This one is #xa2, and if there was enough data, it would be longer
+;; than 15 bytes anyway.
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2))
+       => "End of file inside oversized instruction")
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2 #xff))
+       => "End of file inside oversized instruction")
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2 #xff #xff))
+       => "End of file inside oversized instruction")
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2 #xff #xff #xff))
+       => "End of file inside oversized instruction")
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2 #xff #xff #xff #xff))
+       => "End of file inside oversized instruction")
+
+(check (test/error 64 #vu8(#x36 #x36 #x36 #x36 #x36 #x36 #x36 #xf0
+                                #x36 #xa2 #xff #xff #xff #xff #xff))
+       => "Instruction too long")
+
+(check (test/error 64 (make-bytevector 16 #x36))
+       => "Instruction too long")
+
+(check (test/error 64 (make-bytevector 15 #x36))
+       => "Instruction too long")
+
+(check (test/error 64 (make-bytevector 14 #x36))
+       => "End of file inside instruction")
+
 (check-report)

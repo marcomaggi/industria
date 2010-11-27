@@ -31,10 +31,11 @@
 ;; an operand that can be used to decide the operand size, no such
 ;; suffix is necessary.
 
-(library (weinholt disassembler x86 (1 0 20100607))
+(library (weinholt disassembler x86 (1 1 20101127))
   (export get-instruction invalid-opcode?)
   (import (only (srfi :1 lists) map-in-order)
           (except (rnrs) get-u8)
+          (srfi :39 parameters)
           (weinholt disassembler private (0 0))
           (weinholt disassembler x86-opcodes (1 0 (>= 0))))
 
@@ -66,6 +67,7 @@
          (exists (lambda (op) (memq op '(In Kpd Kps Kss Ksd)))
                  (cdr instr))))
 
+  (define limiter (make-parameter #f))
 
 ;;; Simple byte decoding
   (define (ModR/M-mod byte)
@@ -186,6 +188,7 @@ no conflict with LES/LDS)."
 
 ;;; Port input
   (define (really-get-bytevector-n port n collect tag)
+    ((limiter) n collect tag)
     (let ((bv (get-bytevector-n port n)))
       (unless (eof-object? bv)
         (if collect (apply collect tag (bytevector->u8-list bv))))
@@ -842,192 +845,207 @@ translate-displacement."
         prefixes)
        prefixes)))
 
-  ;; TODO: check that no more than 15 bytes are read, because that is
-  ;; the maximum instruction length.
+  (define (get-instruction* port mode collect)
+    (let more-opcode ((opcode-table opcodes)
+                      (vex.v #f)
+                      (prefixes (prefix-set)))
+      (let ((opcode (get-u8 port)))
+        (let lp ((instr (vector-ref opcode-table opcode))
+                 (modr/m #f)
+                 (opcode opcode)
+                 (prefixes prefixes)
+                 (opcode-collected #f)
+                 (vex-traversed #f)
+                 (d64 #f))
+          (cond
+            ((and (= opcode #xC4) (or (= mode 64) (lookahead-is-valid-VEX? port))
+                  (not (enum-set-member? (prefix vex) prefixes)))
+             ;; Three-byte VEX prefix
+             (let* ((byte1 (get-u8 port))
+                    (byte2 (get-u8 port)))
+               (collect (tag prefix) opcode byte1 byte2)
+               (VEX-prefix-check prefixes)
+               (more-opcode (VEX-m-mmmm->table byte1)
+                            (VEX-vvvv byte2 mode)
+                            (VEX3->prefixes prefixes mode byte1 byte2))))
+
+            ((and (= opcode #xC5) (or (= mode 64) (lookahead-is-valid-VEX? port))
+                  (not (enum-set-member? (prefix vex) prefixes)))
+             ;; Two-byte VEX prefix
+             (let ((byte1 (get-u8 port)))
+               (collect (tag prefix) opcode byte1)
+               (VEX-prefix-check prefixes)
+               (more-opcode (vector-ref opcodes #x0F)
+                            (VEX-vvvv byte1 mode)
+                            (VEX2->prefixes prefixes mode byte1))))
+
+            ((not instr)
+             (unless opcode-collected
+               (collect 'opcode opcode))
+             (raise-UD "Invalid or reserved opcode"))
+
+            ((and (list? instr) (eq? (car instr) '*prefix*)) ;Prefix
+             (collect (tag prefix) opcode)
+             (when (enum-set-member? (prefix rex) prefixes)
+               (raise-UD "Other prefixes can not follow the REX prefix"))
+             (more-opcode opcode-table
+                          vex.v
+                          (enum-set-union
+                           prefixes
+                           ((enum-set-constructor (prefix-set)) (cdr instr)))))
+
+            ((list? instr)
+             ;; An instruction has finally been found
+             (unless opcode-collected
+               (collect (tag opcode) opcode))
+             (when (and (enum-set-member? (prefix vex) prefixes)
+                        (not vex-traversed))
+               (raise-UD "VEX was used but a legacy instruction was found"))
+             (get-operands port mode collect prefixes instr modr/m opcode vex.v d64))
+
+            ;; Divide and conquer the instruction table
+
+            ((eq? (vector-ref instr 0) 'Group)
+             ;; Read a ModR/M byte and use the fields as opcode
+             ;; extension.
+             (collect (tag opcode) opcode)
+             (let* ((modr/m (get-u8/collect port collect (tag modr/m)))
+                    (v (vector-ref instr (if (and (> (vector-length instr) 3)
+                                                  (= (ModR/M-mod modr/m) #b11))
+                                             3 2)))
+                    (instr (vector-ref v (ModR/M-reg modr/m))))
+               (cond ((and (vector? instr) (= (vector-length instr) 8))
+                      (when debug (print-modr/m modr/m prefixes))
+                      (lp (vector-ref instr (ModR/M-r/m modr/m))
+                          'ModR/M-invalid opcode prefixes
+                          #t vex-traversed d64))
+                     (else
+                      (lp instr modr/m opcode prefixes
+                          #t vex-traversed d64)))))
+
+            ((eq? (vector-ref instr 0) 'Prefix)
+             ;; SSE instructions, e.g., where one of these prefixes
+             ;; is considered part of the opcode. "Vanligt
+             ;; REP-prefix kan vara DÖDLIG SSE--vi har hela listan".
+             (lp (vector-ref instr
+                             (cond ((enum-set-member? (prefix repz) prefixes) 2)
+                                   ((enum-set-member? (prefix repnz) prefixes) 4)
+                                   ((enum-set-member? (prefix operand) prefixes) 3)
+                                   (else 1)))
+                 modr/m opcode
+                 (enum-set-difference prefixes (prefix-set repz repnz operand))
+                 opcode-collected vex-traversed d64))
+
+            ((eq? (vector-ref instr 0) 'Datasize)
+             ;; Pick different instructions depending on
+             ;; effective operand size.
+             (lp (vector-ref instr
+                             (case mode
+                               ((64)
+                                (cond ((enum-set-member? (prefix rex.w) prefixes) 3)
+                                      ((enum-set-member? (prefix operand) prefixes) 1)
+                                      (else 2)))
+                               ((32)
+                                (cond ((enum-set-member? (prefix operand) prefixes) 1)
+                                      (else 2)))
+                               ((16)
+                                (cond ((enum-set-member? (prefix operand) prefixes) 2)
+                                      (else 1)))))
+                 modr/m opcode
+                 prefixes
+                 opcode-collected vex-traversed d64))
+
+            ((eq? (vector-ref instr 0) 'Addrsize)
+             (lp (vector-ref instr
+                             (case mode
+                               ((64) (if (enum-set-member? (prefix address) prefixes) 2 3))
+                               ((32) (if (enum-set-member? (prefix address) prefixes) 1 2))
+                               ((16) (if (enum-set-member? (prefix address) prefixes) 2 1))))
+                 modr/m opcode
+                 prefixes
+                 opcode-collected vex-traversed d64))
+
+            ((eq? (vector-ref instr 0) 'Mode)
+             ;; Choose between compatibility/legacy mode and
+             ;; long mode.
+             (lp (vector-ref instr (if (= mode 64) 2 1))
+                 modr/m opcode
+                 prefixes
+                 opcode-collected vex-traversed d64))
+
+            ((eq? (vector-ref instr 0) 'VEX)
+             (lp (vector-ref instr
+                             (cond ((enum-set-member? (prefix vex.l) prefixes)
+                                    (if (> (vector-length instr) 3) 3 2)) ;256-bit
+                                   ((enum-set-member? (prefix vex) prefixes) 2) ;128-bit
+                                   (else 1)))
+                 modr/m opcode
+                 prefixes
+                 opcode-collected #t d64))
+
+            ((eq? (vector-ref instr 0) 'Mem/reg)
+             ;; Read ModR/M and see if it encodes memory or a
+             ;; register. Used for the MOVLPS/MOVHLPS and
+             ;; MOVHPS/MOVLHPS instructions (mnemonics differ) and
+             ;; VMOVSD (operands differ).
+             (let ((modr/m (get-u8 port)))
+               (collect (tag opcode) opcode)
+               (collect (tag modr/m) modr/m)
+               (lp (vector-ref instr
+                               (cond ((= (ModR/M-mod modr/m) #b11) 2) ;register
+                                     (else 1)))
+                   modr/m opcode
+                   prefixes
+                   #t vex-traversed d64)))
+
+            ((eq? (vector-ref instr 0) 'f64)
+             ;; Operand size is forced to 64 bits in 64-bit mode.
+             (lp (vector-ref instr 1)
+                 modr/m opcode
+                 (if (= mode 64)
+                     (enum-set-difference prefixes (prefix-set operand rex.w))
+                     prefixes)
+                 opcode-collected vex-traversed #t))
+
+            ((eq? (vector-ref instr 0) 'd64)
+             ;; In 64-bit mode, the default operand size is 64
+             ;; bits. The only other possible operand size is then
+             ;; 16 bits.
+             (lp (vector-ref instr 1)
+                 modr/m opcode
+                 prefixes
+                 opcode-collected vex-traversed #t))
+
+            (else
+             (collect (tag opcode) opcode)
+             (let ((opcode (get-u8 port)))
+               ;; A new opcode table (two-byte or three-byte opcode)
+               (lp (vector-ref instr opcode)
+                   modr/m opcode
+                   prefixes
+                   #f vex-traversed d64))))))))
+
+  ;; Read the next instruction from the given port, using the given
+  ;; bit mode (16, 32 or 64). The `collect' argument is either #f, or
+  ;; a function which accepts any number of arguments: the first
+  ;; argument is a type tag, and the following arguments are bytes.
+  ;; All bytes read from the port will be passed to the collector.
   (define (get-instruction port mode collect)
-    "Read the next instruction from the given port, using the given
-bit mode (16, 32 or 64). The `collect' argument is either #f, or a
-function which accepts any number of arguments: the first argument is
-a type tag, and the following arguments are bytes. All bytes read from
-the port will be passed to the collector."
-    (if (eof-object? (lookahead-u8 port))
-        (eof-object)
-        (let more-opcode ((opcode-table opcodes)
-                          (vex.v #f)
-                          (prefixes (prefix-set)))
-          (let ((opcode (get-u8 port)))
-            (let lp ((instr (vector-ref opcode-table opcode))
-                     (modr/m #f)
-                     (opcode opcode)
-                     (prefixes prefixes)
-                     (opcode-collected #f)
-                     (vex-traversed #f)
-                     (d64 #f))
-              (cond
-               ((and (= opcode #xC4) (or (= mode 64) (lookahead-is-valid-VEX? port))
-                     (not (enum-set-member? (prefix vex) prefixes)))
-                ;; Three-byte VEX prefix
-                (let* ((byte1 (get-u8 port))
-                       (byte2 (get-u8 port)))
-                  (if collect (collect (tag prefix) opcode byte1 byte2))
-                  (VEX-prefix-check prefixes)
-                  (more-opcode (VEX-m-mmmm->table byte1)
-                               (VEX-vvvv byte2 mode)
-                               (VEX3->prefixes prefixes mode byte1 byte2))))
-
-               ((and (= opcode #xC5) (or (= mode 64) (lookahead-is-valid-VEX? port))
-                     (not (enum-set-member? (prefix vex) prefixes)))
-                ;; Two-byte VEX prefix
-                (let ((byte1 (get-u8 port)))
-                  (if collect (collect (tag prefix) opcode byte1))
-                  (VEX-prefix-check prefixes)
-                  (more-opcode (vector-ref opcodes #x0F)
-                               (VEX-vvvv byte1 mode)
-                               (VEX2->prefixes prefixes mode byte1))))
-
-               ((not instr)
-                (when (and collect (not opcode-collected))
-                  (collect 'opcode opcode))
-                (raise-UD "Invalid or reserved opcode"))
-
-               ((and (list? instr) (eq? (car instr) '*prefix*)) ;Prefix
-                (if collect (collect (tag prefix) opcode))
-                (when (enum-set-member? (prefix rex) prefixes)
-                  (raise-UD "Other prefixes can not follow the REX prefix"))
-                (more-opcode opcode-table
-                             vex.v
-                             (enum-set-union
-                              prefixes
-                              ((enum-set-constructor (prefix-set)) (cdr instr)))))
-
-               ((list? instr)
-                ;; An instruction has finally been found
-                (when (and collect (not opcode-collected))
-                  (collect (tag opcode) opcode))
-                (when (and (enum-set-member? (prefix vex) prefixes)
-                           (not vex-traversed))
-                  (raise-UD "VEX was used but a legacy instruction was found"))
-                (get-operands port mode collect prefixes instr modr/m opcode vex.v d64))
-
-               ;; Divide and conquer the instruction table
-
-               ((eq? (vector-ref instr 0) 'Group)
-                ;; Read a ModR/M byte and use the fields as opcode
-                ;; extension.
-                (if collect (collect (tag opcode) opcode))
-                (let* ((modr/m (get-u8/collect port collect (tag modr/m)))
-                       (v (vector-ref instr (if (and (> (vector-length instr) 3)
-                                                     (= (ModR/M-mod modr/m) #b11))
-                                                3 2)))
-                       (instr (vector-ref v (ModR/M-reg modr/m))))
-                  (cond ((and (vector? instr) (= (vector-length instr) 8))
-                         (when debug (print-modr/m modr/m prefixes))
-                         (lp (vector-ref instr (ModR/M-r/m modr/m))
-                             'ModR/M-invalid opcode prefixes
-                             #t vex-traversed d64))
-                        (else
-                         (lp instr modr/m opcode prefixes
-                             #t vex-traversed d64)))))
-
-               ((eq? (vector-ref instr 0) 'Prefix)
-                ;; SSE instructions, e.g., where one of these prefixes
-                ;; is considered part of the opcode. "Vanligt
-                ;; REP-prefix kan vara DÖDLIG SSE--vi har hela listan".
-                (lp (vector-ref instr
-                                (cond ((enum-set-member? (prefix repz) prefixes) 2)
-                                      ((enum-set-member? (prefix repnz) prefixes) 4)
-                                      ((enum-set-member? (prefix operand) prefixes) 3)
-                                      (else 1)))
-                    modr/m opcode
-                    (enum-set-difference prefixes (prefix-set repz repnz operand))
-                    opcode-collected vex-traversed d64))
-
-               ((eq? (vector-ref instr 0) 'Datasize)
-                ;; Pick different instructions depending on
-                ;; effective operand size.
-                (lp (vector-ref instr
-                                (case mode
-                                  ((64)
-                                   (cond ((enum-set-member? (prefix rex.w) prefixes) 3)
-                                         ((enum-set-member? (prefix operand) prefixes) 1)
-                                         (else 2)))
-                                  ((32)
-                                   (cond ((enum-set-member? (prefix operand) prefixes) 1)
-                                         (else 2)))
-                                  ((16)
-                                   (cond ((enum-set-member? (prefix operand) prefixes) 2)
-                                         (else 1)))))
-                    modr/m opcode
-                    prefixes
-                    opcode-collected vex-traversed d64))
-
-               ((eq? (vector-ref instr 0) 'Addrsize)
-                (lp (vector-ref instr
-                                (case mode
-                                  ((64) (if (enum-set-member? (prefix address) prefixes) 2 3))
-                                  ((32) (if (enum-set-member? (prefix address) prefixes) 1 2))
-                                  ((16) (if (enum-set-member? (prefix address) prefixes) 2 1))))
-                    modr/m opcode
-                    prefixes
-                    opcode-collected vex-traversed d64))
-
-               ((eq? (vector-ref instr 0) 'Mode)
-                ;; Choose between compatibility/legacy mode and
-                ;; long mode.
-                (lp (vector-ref instr (if (= mode 64) 2 1))
-                    modr/m opcode
-                    prefixes
-                    opcode-collected vex-traversed d64))
-
-               ((eq? (vector-ref instr 0) 'VEX)
-                (lp (vector-ref instr
-                                (cond ((enum-set-member? (prefix vex.l) prefixes)
-                                       (if (> (vector-length instr) 3) 3 2)) ;256-bit
-                                      ((enum-set-member? (prefix vex) prefixes) 2) ;128-bit
-                                      (else 1)))
-                    modr/m opcode
-                    prefixes
-                    opcode-collected #t d64))
-
-               ((eq? (vector-ref instr 0) 'Mem/reg)
-                ;; Read ModR/M and see if it encodes memory or a
-                ;; register. Used for the MOVLPS/MOVHLPS and
-                ;; MOVHPS/MOVLHPS instructions (mnemonics differ) and
-                ;; VMOVSD (operands differ).
-                (let ((modr/m (get-u8 port)))
-                  (when collect
-                    (collect (tag opcode) opcode)
-                    (collect (tag modr/m) modr/m))
-                  (lp (vector-ref instr
-                                  (cond ((= (ModR/M-mod modr/m) #b11) 2) ;register
-                                        (else 1)))
-                      modr/m opcode
-                      prefixes
-                      #t vex-traversed d64)))
-
-               ((eq? (vector-ref instr 0) 'f64)
-                ;; Operand size is forced to 64 bits in 64-bit mode.
-                (lp (vector-ref instr 1)
-                    modr/m opcode
-                    (if (= mode 64)
-                        (enum-set-difference prefixes (prefix-set operand rex.w))
-                        prefixes)
-                    opcode-collected vex-traversed #t))
-
-               ((eq? (vector-ref instr 0) 'd64)
-                ;; In 64-bit mode, the default operand size is 64
-                ;; bits. The only other possible operand size is then
-                ;; 16 bits.
-                (lp (vector-ref instr 1)
-                    modr/m opcode
-                    prefixes
-                    opcode-collected vex-traversed #t))
-
-               (else
-                (if collect (collect (tag opcode) opcode))
-                (let ((opcode (get-u8 port)))
-                  ;; A new opcode table (two-byte or three-byte opcode)
-                  (lp (vector-ref instr opcode)
-                      modr/m opcode
-                      prefixes
-                      #f vex-traversed d64))))))))))
+    (let ((collect (or collect (lambda x #f))))
+      (parameterize ((limiter
+                      (let ((have-read 0))
+                        ;; The limiter works to stop get-instruction
+                        ;; from reading more than 15 bytes.
+                        (lambda (wanted-bytes collect tag)
+                          (when (> (+ have-read wanted-bytes) 15)
+                            (let* ((n (- 15 have-read))
+                                   (bv (get-bytevector-n port n)))
+                              (unless (or (eof-object? bv) (zero? n))
+                                (if collect (apply collect tag (bytevector->u8-list bv))))
+                              (when (or (eof-object? bv) (< (bytevector-length bv) n))
+                                (raise-UD "End of file inside oversized instruction"))
+                              (raise-UD "Instruction too long")))
+                          (set! have-read (+ have-read wanted-bytes))))))
+        (if (eof-object? (lookahead-u8 port))
+            (eof-object)
+            (get-instruction* port mode collect))))))
