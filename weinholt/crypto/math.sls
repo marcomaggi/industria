@@ -15,8 +15,8 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #!r6rs
 
-(library (weinholt crypto math (1 0 20101104))
-  (export invmod expt-mod)
+(library (weinholt crypto math (1 1 20101127))
+  (export invmod expt-mod div-mod)
   (import (rnrs))
 
   (define (invmod a b)
@@ -45,5 +45,9 @@
               (if (bitwise-bit-set? exponent 0)
                   (mod (* result base) modulus)
                   result)))))
+
+  ;; Division modulo p
+  (define (div-mod num den p)
+    (mod (* num (expt-mod den -1 p)) p))
 
   )
