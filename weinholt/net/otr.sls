@@ -26,7 +26,7 @@
 ;; TODO: finishing sessions.
 ;; TODO: let the library user decide what errors to send
 
-(library (weinholt net otr (0 0 20101121))
+(library (weinholt net otr (0 0 20101127))
   (export otr-message?
           otr-update!
           otr-send-encrypted!
@@ -53,6 +53,7 @@
           (weinholt crypto dsa)
           (weinholt crypto dh)
           (weinholt crypto entropy)
+          (only (weinholt crypto math) div-mod)
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
           (weinholt struct pack)
@@ -494,7 +495,7 @@
 
   (define (smp-hash version . ints)
     (bytevector->uint
-     (sha-256->bytevector (apply sha-256 (make-bytevector 1 version)
+     (sha-256->bytevector (apply sha-256 (pack "C" version)
                                  (map uint->mpi ints)))))
 
   (define (send-smp type . ints)
@@ -530,6 +531,50 @@
     ;; "Pick random values" in the spec.
     (bytevector->uint (make-random-bytevector 128/8)))
 
+  (define (smp-check-values . vals)
+    (unless (for-all (lambda (v) (< 2 v (- n 2))) vals)
+      (error 'smp-check-values "Invalid SMP value" vals)))
+
+  (define (smp-check-exponents . exps)
+    (unless (for-all (lambda (e) (< 0 e order)) exps)
+      (error 'smp-check-values "Invalid SMP exponent" exps)))
+
+  (define (smp-check-logarithm-proof version c D g*)
+    ;; Verify the zero-knowledge proof (c,D) that g* is known.
+    (unless (= c (smp-hash version
+                           (mod (* (expt-mod g D n)
+                                   (expt-mod g* c n))
+                                n)))
+      (error 'smp-check-logarithm-proof
+             "Invalid logarithm proof")))
+
+  (define (smp-check-coordinate-proof version c D1 D2 g1 g2 P Q)
+    ;; Verify the zero-knowledge proof (c,D1,D2,g1,g2) that P and Q
+    ;; were created according to the protocol.
+    (unless (= c (smp-hash version
+                           (mod (* (expt-mod g2 D1 n)
+                                   (expt-mod P c n))
+                                n)
+                           (mod (* (expt-mod g D1 n)
+                                   (expt-mod g1 D2 n)
+                                   (expt-mod Q c n))
+                                n)))
+      (error 'smp-check-coordinate-proof
+             "Invalid coordinate equality proof")))
+
+  (define (smp-check-logarithm-eq-proof version c D g* Qa/Qb R)
+    ;; Verify the zero-knowledge proof (c,D,g*,Qa/Qb) that R was generated
+    ;; according to the protocol.
+    (unless (= c (smp-hash version
+                           (mod (* (expt-mod g D n)
+                                   (expt-mod g* c n))
+                                n)
+                           (mod (* (expt-mod Qa/Qb D n)
+                                   (expt-mod R c n))
+                                n)))
+      (error 'smp-check-logarithm-eq-proof
+             "Invalid logarithm equality proof")))
+  
   ;; This takes one TLV from the correspondent and carefully crafts a
   ;; witty reply.
   (define (handle-smp tlv)
@@ -558,12 +603,11 @@
           ((expect1)
            (assert (or (= type tlv-smp-1) (= type tlv-smp-1q)))
            (let-values (((g2a c2 D2 g3a c3 D3) (get-ints)))
-             ;; TODO: sanity checks on the incoming values
-             ;; Verify zero-knowledge proofs:
-             (unless (= c2 (smp-hash 1 (mod (* (expt-mod g D2 n) (expt-mod g2a c2 n)) n)))
-               (error 'smp-expect1 "c2 is bad"))
-             (unless (= c3 (smp-hash 2 (mod (* (expt-mod g D3 n) (expt-mod g3a c3 n)) n)))
-               (error 'smp-expect1 "c3 is bad"))
+             (smp-check-values g2a g3a)
+             (smp-check-exponents D2 D3)
+             ;; Proof for g2a, g3a
+             (smp-check-logarithm-proof 1 c2 D2 g2a)
+             (smp-check-logarithm-proof 2 c3 D3 g3a)
              (save-smp-values 'g2a g2a 'g3a g3a)
              ;; Wait for the local secret. TODO: get the user
              ;; message from 1q messages.
@@ -572,21 +616,15 @@
           ((expect2)
            (assert (= type tlv-smp-2))
            (let-values (((g2b c2 D2 g3b c3 D3 Pb Qb cP D5 D6) (get-ints)))
-             ;; TODO: sanity checks
-             (unless (= c2 (smp-hash 3 (mod (* (expt-mod g D2 n) (expt-mod g2b c2 n)) n)))
-               (error 'smp-expect2 "c2 is bad"))
-             (unless (= c3 (smp-hash 4 (mod (* (expt-mod g D3 n) (expt-mod g3b c3 n)) n)))
-               (error 'smp-expect2 "c3 is bad"))
+             (smp-check-values g2b g3b Pb Qb)
+             (smp-check-exponents D2 D3 D5 D6)
+             ;; Proofs for g2b, g3b
+             (smp-check-logarithm-proof 3 c2 D2 g2b)
+             (smp-check-logarithm-proof 4 c3 D3 g3b)
              (let ((g2 (expt-mod g2b (get-smp-value 'a2) n))
                    (g3 (expt-mod g3b (get-smp-value 'a3) n)))
-               (unless (= cP (smp-hash 5 (mod (* (expt-mod g3 D5 n)
-                                                 (expt-mod Pb cP n))
-                                              n)
-                                       (mod (* (expt-mod g D5 n)
-                                               (expt-mod g2 D6 n)
-                                               (expt-mod Qb cP n))
-                                            n)))
-                 (error 'smp-expect2 "cP is bad"))
+               ;; Proof for Pb, Qb
+               (smp-check-coordinate-proof 5 cP D5 D6 g2 g3 Pb Qb)
                (let ((r4 (random-exponent))
                      (r5 (random-exponent))
                      (r6 (random-exponent))
@@ -602,8 +640,8 @@
                                              n)))
                           (D5 (mod (- r5 (* r4 cP)) order))
                           (D6 (mod (- r6 (* (get-smp-value 'x) cP)) order)))
-                     (let ((Pa/Pb (mod (* Pa (expt-mod Pb -1 n)) n))
-                           (Qa/Qb (mod (* Qa (expt-mod Qb -1 n)) n)))
+                     (let ((Pa/Pb (div-mod Pa Pb n))
+                           (Qa/Qb (div-mod Qa Qb n)))
                        (let ((Ra (expt-mod Qa/Qb (get-smp-value 'a3) n)))
                          ;; More zero-knowledge proofs:
                          (let* ((cR (smp-hash 7 (expt-mod g r7 n)
@@ -616,25 +654,17 @@
           ((expect3)
            (assert (= type tlv-smp-3))
            (let-values (((Pa Qa cP D5 D6 Ra cR D7) (get-ints)))
-             ;; TODO: sanity checks on the incoming values
-             (unless (= cP (smp-hash 6 (mod (* (expt-mod (get-smp-value 'g3) D5 n)
-                                               (expt-mod Pa cP n))
-                                            n)
-                                     (mod (* (expt-mod g D5 n)
-                                             (expt-mod (get-smp-value 'g2) D6 n)
-                                             (expt-mod Qa cP n))
-                                          n)))
-               (error 'smp-expect3 "cP is bad"))
-             (let ((Pa/Pb (mod (* Pa (expt-mod (get-smp-value 'Pb) -1 n)) n))
-                   (Qa/Qb (mod (* Qa (expt-mod (get-smp-value 'Qb) -1 n)) n))
+             (smp-check-values Pa Qa Ra)
+             (smp-check-exponents D5 D6 D7)
+             ;; Proof for Pa, Qa
+             (smp-check-coordinate-proof 6 cP D5 D6 (get-smp-value 'g2)
+                                         (get-smp-value 'g3) Pa Qa)
+             (let ((Pa/Pb (div-mod Pa (get-smp-value 'Pb) n))
+                   (Qa/Qb (div-mod Qa (get-smp-value 'Qb) n))
                    (b3 (get-smp-value 'b3)))
-               (unless (= cR (smp-hash 7 (mod (* (expt-mod g D7 n)
-                                                 (expt-mod (get-smp-value 'g3a) cR n))
-                                              n)
-                                       (mod (* (expt-mod Qa/Qb D7 n)
-                                               (expt-mod Ra cR n))
-                                            n)))
-                 (error 'smp-expect3 "cR is bad"))
+               ;; Proof for Ra
+               (smp-check-logarithm-eq-proof 7 cR D7 (get-smp-value 'g3a)
+                                             Qa/Qb Ra)
                (let ((Rab (expt-mod Ra b3 n)))
                  ;; Ever more zero-knowledge proofs
                  (let* ((r7 (random-exponent))
@@ -649,13 +679,11 @@
           ((expect4)
            (assert (= type tlv-smp-4))
            (let-values (((Rb cR D7) (get-ints)))
-             (unless (= cR (smp-hash 8 (mod (* (expt-mod g D7 n)
-                                               (expt-mod (get-smp-value 'g3b) cR n))
-                                            n)
-                                     (mod (* (expt-mod (get-smp-value 'Qa/Qb) D7 n)
-                                             (expt-mod Rb cR n))
-                                          n)))
-               (error 'smp-expect4 "cR is bad"))
+             (smp-check-values Rb)
+             (smp-check-exponents D7)
+             ;; Proof for Rb
+             (smp-check-logarithm-eq-proof 8 cR D7 (get-smp-value 'g3b)
+                                           (get-smp-value 'Qa/Qb) Rb)
              (let ((Rab (expt-mod Rb (get-smp-value 'a3) n)))
                ;; Tell the caller if authentication worked or not:
                (queue-data 'authentication (= (get-smp-value 'Pa/Pb) Rab))
