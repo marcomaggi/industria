@@ -1,6 +1,6 @@
 -*- mode: outline; coding: utf-8 -*-
 
-* New in 1.1 (not yet released):
+* Changes in version 1.1
 
 ** (weinholt bytevectors): Added bytevector=?/constant-time
 
