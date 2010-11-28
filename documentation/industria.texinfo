@@ -106,7 +106,7 @@ later version published by the Free Software Foundation.
 * net::                Network protocols
 * struct::             Binary structure utilities
 * text::               Textual structure utilities
-@c * x::                  X Window System interface
+* types::              Data types and utilities
 @end menu
 
 @include compression.texinfo
@@ -116,6 +116,7 @@ later version published by the Free Software Foundation.
 @include struct.texinfo
 @include text.texinfo
 
+@include types.texinfo
 @include demos.texinfo
 
 @node Index

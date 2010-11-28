@@ -1,0 +1,80 @@
+@c -*-texinfo-*-
+
+@node types
+@section Data types and utilities
+
+@menu
+* bytevectors::           Bytevector utilities
+@end menu
+
+@c ======================================================================
+@node bytevectors
+@subsection Bytevector utilities
+The @code{(weinholt bytevectors)} library contains utilities for
+working with @rnrs{} bytevectors. For constructing and deconstructing
+bytevectors, @pxref{struct pack}.
+
+@deffn Procedure bytevector-append [bytevector ...]
+Appends the given bytevectors.
+@end deffn
+
+@deffn Procedure bytevector-concatenate list
+@var{list} is a list of bytevectors. The bytevectors are appended.
+@end deffn
+
+@deffn Procedure subbytevector bytevector start [end]
+Analogous to @code{substring}. Returns a new bytevector containing the
+bytes of @var{bytevector} from index @code{start} to @var{end}
+(exclusive).
+@end deffn
+
+@deffn Procedure bytevector-u8-index bytevector byte [start end]
+Searches @var{bytevector} for @var{byte}, from left to right. The
+optional arguments @var{start} and @var{end} give the range to search.
+By default the whole bytevector is searched. Returns @code{#f} is no
+match is found.
+@end deffn
+
+@deffn Procedure bytevector-u8-index-right bytevector byte [start end]
+Analogous to @code{bytevector-u8-index-right}, except this procedure
+searches right-to-left.
+@end deffn
+
+@deffn Procedure bytevector->uint bytevector
+@var{bytevector} is interpreted as an unsigned integer in big endian
+byte order and is converted to an integer. The empty bytevector is
+treated as zero.
+@end deffn
+
+@deffn Procedure uint->bytevector integer
+@var{integer} is converted to an unsigned integer in big endian byte
+order. The returned bytevector has the minimum possible length. Zero
+is converted to the empty bytevector.
+
+@example
+(import (weinholt bytevectors))
+(uint->bytevector 256)
+@result{} #vu8(1 0)
+(uint->bytevector 255)
+@result{} #vu8(255)
+@end example
+@end deffn
+
+@deffn Procedure bytevector=?/constant-time bytevector1 bytevector2
+True if @var{bytevector1} and @var{bytevector2} are of equal length
+and have the same contents.
+
+This is a drop-in replacement for @code{bytevector=?} that does not
+leak information about the outcome of the comparison by how much time
+the comparison takes to perform. It works by accumulating the
+differences between the bytevectors. This kind of operation is most
+often needed when comparing fixed-length message digests, so the
+length comparison is done in the obvious (fast) way.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
