@@ -794,32 +794,30 @@
             (else (try-pseudo #t)))))
 
   (define (instruction-encodable? operands template mode os)
-    (call/cc
-     (lambda (return)
-       ;;        (print template)
-       ;; This operand size and address size stuff is somewhat tricky,
-       ;; and can likely be improved a lot. They are needed in order
-       ;; to emit the right operand/address size override prefix. The
-       ;; opsyntax table knows if an operand must have the same size
-       ;; as the instruction operand size attribute. If it does, then
-       ;; the size of the given operand is checked here. The template
-       ;; encoding can also require that an operand size override be
-       ;; emitted, and that is equivalent to having the mnemonic give
-       ;; the size of the operation.
-       (let* ((opsyntax (template-opsyntax template)))
-         (and (for-all vector? opsyntax) ;FIXME: unimplemented opsyntax
-              (cond ((for-all (lambda (operand opsyntax)
-                                (operand-compatible-with-opsyntax?
-                                 operand opsyntax os mode))
-                              operands opsyntax)
-                     (when (and (exists opsyntax-requires-operand-size-override?
-                                        opsyntax)
-                                (not os))
-                       (error 'instruction-encodable?
-                              "This instruction needs an explicit operand size"
-                              operands))
-                     #t)
-                    (else #f)))))))
+    ;;        (print template)
+    ;; This operand size and address size stuff is somewhat tricky,
+    ;; and can likely be improved a lot. They are needed in order
+    ;; to emit the right operand/address size override prefix. The
+    ;; opsyntax table knows if an operand must have the same size
+    ;; as the instruction operand size attribute. If it does, then
+    ;; the size of the given operand is checked here. The template
+    ;; encoding can also require that an operand size override be
+    ;; emitted, and that is equivalent to having the mnemonic give
+    ;; the size of the operation.
+    (let* ((opsyntax (template-opsyntax template)))
+      (and (for-all vector? opsyntax)   ;FIXME: unimplemented opsyntax
+           (cond ((for-all (lambda (operand opsyntax)
+                             (operand-compatible-with-opsyntax?
+                              operand opsyntax os mode))
+                           operands opsyntax)
+                  (when (and (exists opsyntax-requires-operand-size-override?
+                                     opsyntax)
+                             (not os))
+                    (error 'instruction-encodable?
+                           "This instruction needs an explicit operand size"
+                           operands))
+                  #t)
+                 (else #f)))))
 
   (define (operand-size operand opsyntax)
     (and (vector? opsyntax)             ;FIXME:temporary:unimplemented opsyntax
