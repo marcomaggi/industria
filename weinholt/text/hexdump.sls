@@ -17,7 +17,7 @@
 
 ;; Old timey hex dumps
 
-(library (weinholt text hexdump (1 0 20101107))
+(library (weinholt text hexdump (1 0 20101202))
   (export hexdump)
   (import (rnrs)
           (only (srfi :13 strings) string-pad))
@@ -87,10 +87,10 @@
        (hexdump p bv 0))
       ((p bv start)
        (hexdump p bv start (bytevector-length bv)))
+      ((p bv start end)
+       (hexdump p bv start end ""))
       ((p bv start end prefix)
-       (hexdump p bv start ""))
-      ((p bv start end prefix)
-       (hexdump p bv start "" "  "))
+       (hexdump p bv start end prefix "  "))
       ((p bv start end prefix suffix)
        (let ((p (or p (current-output-port))))
          (do ((i start (+ i 16)))
