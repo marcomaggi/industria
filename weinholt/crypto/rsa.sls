@@ -17,16 +17,16 @@
 
 ;; PKCS #1: RSA Encryption.
 
-;; This library is vulnerable to timing attacks and will leak your key.
-
 ;; RFC 3447. Public-Key Cryptography Standards (PKCS) #1: RSA
 ;; Cryptography Specifications Version 2.1
 
 ;; But look at RFC 2313, it's easier to read...
 
-(library (weinholt crypto rsa (1 0 20101121))
-  (export make-rsa-public-key
-          rsa-public-key?
+;; TODO: key generation. must be very very very careful to get a good
+;; random number generator for that
+
+(library (weinholt crypto rsa (1 1 20101207))
+  (export make-rsa-public-key rsa-public-key?
           rsa-public-key-modulus
           rsa-public-key-public-exponent
           rsa-public-key-n
@@ -36,18 +36,36 @@
           rsa-public-key-length
           rsa-public-key-byte-length
 
-          ;; make-rsa-private-key
+          make-rsa-private-key rsa-private-key?
+          rsa-private-key-version
+          rsa-private-key-modulus
+          rsa-private-key-public-exponent
+          rsa-private-key-private-exponent
+          rsa-private-key-prime1
+          rsa-private-key-prime2
+          rsa-private-key-exponent1
+          rsa-private-key-exponent2
+          rsa-private-key-coefficient
+          rsa-private-key-n
+          rsa-private-key-d
 
-          rsa-decrypt
+          rsa-private->public
+          rsa-private-key-from-bytevector
+          rsa-private-key-from-pem-file
+
           rsa-encrypt
+          rsa-decrypt
+          rsa-decrypt/blinding
           rsa-pkcs1-encrypt
+          rsa-pkcs1-decrypt
           rsa-pkcs1-decrypt-signature
           rsa-pkcs1-decrypt-digest)
   (import (rnrs)
           (weinholt bytevectors)
           (weinholt crypto entropy)
           (weinholt crypto math)
-          (prefix (weinholt struct der (0 0)) der:))
+          (prefix (weinholt struct der (0 0)) der:)
+          (weinholt text base64))
 
   (define (RSAPublicKey)
     `(sequence (modulus integer)
@@ -68,20 +86,32 @@
     `(sequence (algorithm object-identifier)
                (parameters ANY (default #f))))
 
+  (define (RSAPrivateKey)
+    `(sequence (version ,(Version))
+               (modulus integer)
+               (publicExponent integer)
+               (privateExponent integer)
+               (prime1 integer)
+               (prime2 integer)
+               (exponent1 integer)
+               (exponent2 integer)
+               (coefficient integer)
+               (otherPrimeInfos ,(OtherPrimeInfos) (default '()))))
+
+  (define (Version)
+    'integer)
+
+  (define (OtherPrimeInfos)
+    `(sequence-of 0 +inf.0 ,(OtherPrimeInfo)))
+
+  (define (OtherPrimeInfo)
+    `(sequence (prime integer)
+               (exponent integer)
+               (coefficient integer)))
+
   (define-record-type rsa-public-key
     (fields modulus                     ;n
             public-exponent))           ;e
-
-  (define-record-type rsa-private-key
-    (fields version
-            modulus                     ;n
-            public-exponent             ;e
-            private-exponent            ;d
-            prime1                      ;p
-            prime2                      ;q
-            exponent1                   ;d mod (p-1)
-            exponent2                   ;d mod (q-1)
-            coefficient))               ;(inverse of q) mod p
 
   (define rsa-public-key-n rsa-public-key-modulus)
   (define rsa-public-key-e rsa-public-key-public-exponent)
@@ -89,21 +119,105 @@
   (define (rsa-public-key-length key)
     (bitwise-length (rsa-public-key-modulus key)))
 
-  (define (rsa-public-key-byte-length key)
-    (let ((bitlen (rsa-public-key-length key)))
-      (fxdiv (fxand (fx+ bitlen 7) -8) 8)))
+  (define (byte-length n)
+    (fxdiv (fxand (fx+ (bitwise-length n) 7) -8) 8))
 
-  (define (dsa-private->public key)
-    (make-rsa-public-key (rsa-private-key-modulus key)
-                         (rsa-private-key-public-exponent key)))
+  (define (rsa-public-key-byte-length key)
+    (byte-length (rsa-public-key-modulus key)))
 
   (define (rsa-public-key-from-bytevector bv)
     (apply make-rsa-public-key (der:translate (der:decode bv)
                                               (RSAPublicKey))))
 
-  ;; TODO: When doing private key operations, use RSA blinding (Boneh,
-  ;; D., Brumley, D., "Remote timing attacks are practical", USENIX
-  ;; Security Symposium 2003.)
+  (define-record-type rsa-private-key
+    (opaque #t)
+    (nongenerative rsa-private-key-bb9cab0e-a7c3-439f-9ab0-7be7f4c7c198)
+    (fields version
+            modulus                     ;n
+            public-exponent             ;e
+            private-exponent            ;d
+            prime1                      ;p
+            prime2                      ;q
+            exponent1                   ;(mod d (- p 1))
+            exponent2                   ;(mod d (- q 1))
+            coefficient                 ;(expt-mod q -1 p)
+            other-primes)
+    (protocol
+     (lambda (construct)
+       (define who 'make-rsa-private-key)
+       (define proto
+         (case-lambda
+           ((n e d)
+            (unless (= (expt-mod (expt-mod 2 e n) d n) 2)
+              (error who "Invalid key"))
+            ;; Factoring n is overkill. So why not?
+            (let lp ((s 0)
+                     (t (- (* e d) 1)))
+              (if (even? t)
+                  (lp (+ s 1) (div t 2))
+                  (let lp ()
+                    (let ((a (random-integer n)))
+                      (let lp* ((b (expt-mod a t n))
+                                (it 0))
+                        (cond ((> it 1000)
+                               ;; Just in case the key is bad and the
+                               ;; first check didn't catch it. Only 2
+                               ;; iterations are expected here anyway.
+                               (error who "Invalid key"))
+                              ((not (= 1 (expt-mod b 2 n)))
+                               (lp* (expt-mod b 2 n)
+                                    (+ it 1)))
+                              ((or (= 1 (mod b n))
+                                   (= (- n 1) (mod b n)))
+                               (lp))
+                              (else
+                               ;; Found a non-trivial square root of 1
+                               (let* ((p (gcd (- b 1) n))
+                                      (q (/ n p)))
+                                 (proto n e d p q))))))))))
+           ((n e d p)
+            (proto n e d (/ n p)))
+           ((n e d p q)
+            (let* ((n (or n (* p q)))
+                   (p (or p (/ n q)))
+                   (q (or q (/ n p)))
+                   (d (or d (expt-mod e -1 (* (- p 1) (- q 1))))))
+              (proto n e d p q
+                     (mod d (- p 1))
+                     (mod d (- q 1))
+                     (expt-mod q -1 p)
+                     '())))
+           ((n e d p q e1) (proto n e d p q))
+           ((n e d p q e1 e2) (proto n e d p q))
+           ((n e d p q e1 e2 coeff)
+            (proto n e d p q e1 e2 coeff '()))
+           ((n e d p q e1 e2 coeff other)
+            ;; XXX: should probably check that p and q are in the
+            ;; right order. If not then reorder and possibly recompute
+            ;; the coefficient?
+            (construct 0 n e d p q e1 e2 coeff other))
+           ((version n e d p q e1 e2 coeff other)
+            (construct version n e d p q e1 e2 coeff other))))
+       proto)))
+
+  (define rsa-private-key-n rsa-private-key-modulus)
+  (define rsa-private-key-d rsa-private-key-private-exponent)
+
+  (define (rsa-private->public key)
+    (make-rsa-public-key (rsa-private-key-modulus key)
+                         (rsa-private-key-public-exponent key)))
+
+  (define (rsa-private-key-from-pem-file filename)
+    (let-values (((type data) (get-delimited-base64 (open-input-file filename))))
+      (unless (string=? type "RSA PRIVATE KEY")
+        (assertion-violation 'rsa-private-key-from-pem-file
+                             "The file is not a 'RSA PRIVATE KEY' PEM file" filename))
+      (rsa-private-key-from-bytevector data)))
+
+  (define (rsa-private-key-from-bytevector bv)
+    (apply make-rsa-private-key (der:translate (der:decode bv)
+                                               (RSAPrivateKey))))
+
   (define (rsa-encrypt plaintext key)
     (if (rsa-public-key? key)
         (expt-mod plaintext
@@ -113,61 +227,134 @@
                   (rsa-private-key-public-exponent key)
                   (rsa-private-key-modulus key))))
 
-
   (define (rsa-decrypt ciphertext key)
-    (expt-mod ciphertext
-              (rsa-private-key-private-exponent key)
-              (rsa-private-key-modulus key)))
+    (let ((c ciphertext)
+          (d (rsa-private-key-private-exponent key))
+          (n (rsa-private-key-modulus key))
+          (p (rsa-private-key-prime1 key))
+          (q (rsa-private-key-prime2 key))
+          (dp (rsa-private-key-exponent1 key))
+          (dq (rsa-private-key-exponent2 key))
+          (u (rsa-private-key-coefficient key)))
+      (if (and d n p q dp dq u)         ;faster
+          (let ((m1 (expt-mod c dp p))
+                (m2 (expt-mod c dq q)))
+            (let ((h (mod (* u (if (< m1 m2)
+                                   (- (+ m1 p) m2)
+                                   (- m1 m2)))
+                          p)))
+              (+ m2 (* h q))))
+          (expt-mod c d n))))           ;slower
 
-  (define (rsa-pkcs1-encrypt plaintext-bv key)
-    ;; Format the plaintext as per PKCS #1:
-    ;; EB = 00 || BT || PS || 00 || D .
-    (let* ((keylen (rsa-public-key-byte-length key))
-           (eb (make-bytevector keylen #xff))
-           (end-of-PS (- keylen
-                         (bytevector-length plaintext-bv)
-                         1)))
-      (bytevector-u8-set! eb 0 #x00)
-      (bytevector-u8-set! eb 1 #x02)    ;public key operation
+  ;; Private key operation with RSA blinding
+  (define (rsa-decrypt/blinding ciphertext key)
+    (let ((e (rsa-private-key-public-exponent key))
+          (d (rsa-private-key-private-exponent key))
+          (n (rsa-private-key-modulus key)))
+      (let* ((r (bytevector->uint (make-random-bytevector
+                                   (fxdiv (fx+ (bitwise-length n) 7) 16))))
+             (c* (* ciphertext (expt-mod r e n))))
+        (div-mod (rsa-decrypt c* key) r n))))
 
-      (unless (> (- end-of-PS 2) 8)
-        ;; Recommendation from RFC 3447 7.2: padding should be at
-        ;; least eight octets long.
-        (error 'rsa-pkcs1-encrypt
-               "The plaintext is too long for the key"))
+  ;; Block types
+  (define EMSA #x01)                 ;EMSA-PKCS1-v1_5 (for signatures)
+  (define EME #x02)                  ;EME-PKCS1-v1_5 (for encryption)
 
-      ;; Pad with random non-zero bytes
-      (do ((i 2 (+ i 1)))
-          ((= i end-of-PS))
-        (bytevector-u8-set! eb i (random-positive-byte)))
+  (define (pkcs1-wrap block-type key-length bv)
+    (bytevector->uint
+     (call-with-bytevector-output-port
+       (lambda (p)
+         ;; Wrap the plaintext as per PKCS #1:
+         ;; EB = 00 || BT || PS || 00 || M.
+         (put-u8 p #x00)
+         (put-u8 p block-type)
+         (let ((padding (- key-length (bytevector-length bv) 3)))
+           (when (< padding 8)
+             (error 'pkcs1-wrap "The message is too long"))
+           (if (= block-type EMSA)
+               (put-bytevector p (make-bytevector padding #xFF))
+               (do ((i 0 (+ i 1)))
+                   ((= i padding))
+                 (put-u8 p (random-positive-byte)))))
+         (put-u8 p #x00)
+         (put-bytevector p bv)))))
 
-      (bytevector-u8-set! eb end-of-PS 0)
+  ;; EME-PKCS1-v1_5 decoding. Returns the unwrapped M
+  (define (pkcs1-unwrap block-type key-length int fault)
+    (let ((bv (make-bytevector key-length)))
+      ;; Bytevector contains: 00 || BT || PS || 00 || M.
+      (bytevector-uint-set! bv 0 int (endianness big) key-length)
+      (pkcs1-check block-type bv fault)
+      (subbytevector bv (+ (bytevector-u8-index bv 0 2) 1)
+                     (bytevector-length bv))))
 
-      (bytevector-copy! plaintext-bv 0
-                        eb (+ end-of-PS 1)
-                        (bytevector-length plaintext-bv))
-      
-      (rsa-encrypt (bytevector-uint-ref eb
-                                        0
-                                        (endianness big)
-                                        (bytevector-length eb))
-                   key)))
+  ;; Verify that bv is a properly formed PKCS #1 block. Done in
+  ;; constant time (see the note in section 7.2.2 of RFC 3447).
+  (define (pkcs1-check block-type bv fault)
+    (define (combine x y)
+      ;; Return zero if one of the arguments is zero. Otherwise return
+      ;; a positive byte.
+      (let ((z (fx* x y)))              ;TODO: something faster
+        (fxior (fxarithmetic-shift-right z 8) (fxand z #xff))))
+    (define (=? x y)
+      (fx- (fxarithmetic-shift-right (fxnot (fxior (fx- y x) (fx- x y)))
+                                     (- (fixnum-width) 1))))
+    (define (<? x y)
+      (fx- (fxarithmetic-shift-right (fxxor (fx- x y)
+                                            (fxand (fxxor x y)
+                                                   (fxxor (fx- x y) x)))
+                                     (- (fixnum-width) 1))))
+    ;; Check that bv starts with 00 || BT (done by diff0). Then
+    ;; check that there is a zero that separates PS and M (done by
+    ;; prod). Also check that PS is at least eight bytes long.
+    (do ((diff0 (fxior (bytevector-u8-ref bv 0)
+                       (fxxor block-type (bytevector-u8-ref bv 1))))
+         (i 2 (+ i 1))
+         (prod 1 (combine prod (bytevector-u8-ref bv i)))
+         (<8 0 (fxior <8 (fxand (<? i (+ 8 3)) (=? prod 0)))))
+        ((= i (bytevector-length bv))
+         (unless (fxzero? (fx+ diff0 (fx+ prod <8)))
+           (fault)))))
+
+  ;; RSAES-PKCS1-V1_5-ENCRYPT. This take a short message, wraps it in
+  ;; random padding, and encrypts it for the recipient key.
+  (define (rsa-pkcs1-encrypt bytevector key)
+    (let ((k (rsa-public-key-byte-length key)))
+      (when (> (bytevector-length bytevector) (- k 11))
+        (error 'rsa-pkcs1-encrypt "The message is too long"))
+      (rsa-encrypt (pkcs1-wrap EME k bytevector) key)))
+
+  ;; RSAES-PKCS1-V1_5-DECRYPT. This is the inverse of the above.
+  (define (rsa-pkcs1-decrypt ciphertext key)
+    (define (fault) (error 'rsa-pkcs1-decrypt "Decryption error"))
+    (let ((clen (byte-length ciphertext))
+          (klen (byte-length (rsa-private-key-n key))))
+      (when (or (not (= clen klen))
+                (< klen 11)
+                (> ciphertext (rsa-private-key-n key)))
+        (fault))
+      (pkcs1-unwrap EME klen (rsa-decrypt/blinding ciphertext key)
+                    fault)))
+
+  ;; TODO: RSASSA-PKCS1-V1_5-SIGN, RSASSA-PKCS1-V1_5-VERIFY. Verify
+  ;; can be done using the stuff below, or alternatively it can be
+  ;; done by using SIGN's encoder stuff (DER) and doing a comparison.
 
   (define (rsa-pkcs1-decrypt-signature signature key)
     ;; Encrypt the signature with a public key. If it comes out
     ;; alright, the signature was signed with the corresponding
     ;; private key.
+    (define (fault)
+      (error 'rsa-pkcs1-decrypt-signature "bad signature"))
     (let ((bvsig (uint->bytevector (rsa-encrypt signature key))))
-      (case (bytevector-u8-ref bvsig 0)
-        ((#x01)
-         (do ((i 1 (fx+ i 1)))
-             ((fxzero? (bytevector-u8-ref bvsig i))
-              (subbytevector bvsig (fx+ i 1)
-                             (bytevector-length bvsig)))
-           (unless (fx=? #xff (bytevector-u8-ref bvsig i))
-             (error 'rsa-pkcs-decrypt-signature "bad signature"))))
-        (else
-         (error 'rsa-pkcs1-decrypt-signature "bad signature")))))
+      (unless (= (bytevector-u8-ref bvsig 0) EMSA)
+        (fault))
+      (do ((i 1 (fx+ i 1)))
+          ((fxzero? (bytevector-u8-ref bvsig i))
+           (subbytevector bvsig (fx+ i 1)
+                          (bytevector-length bvsig)))
+        (unless (fx=? #xff (bytevector-u8-ref bvsig i))
+          (fault)))))
 
   (define (rsa-pkcs1-decrypt-digest signature key)
     ;; Encrypt the signature with a public key. If it comes out

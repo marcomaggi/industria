@@ -640,6 +640,8 @@ Parses @var{bv} as an ASN.1 DER encoded private DSA key.
 Opens the file and reads a private DSA key. The file should be in
 Privacy Enhanced Mail (PEM) format and contain an ASN.1 DER encoded
 private DSA key.
+
+Encrypted keys are currently not supported.
 @end deffn
 
 @deffn Procedure dsa-signature-from-bytevector bv
@@ -1044,11 +1046,8 @@ Version history:
 @c ======================================================================
 @node crypto rsa
 @subsection RSA public key encryption and signatures
-The @code{(weinholt crypto rsa)} library implements the Rivest, Shamir
-and Adleman (RSA) algorithm and a few helpers.
-
-Currently only public key operations are provided. This is the bare
-minimum required for the TLS client library.
+The @code{(weinholt crypto rsa)} library implements the RSA (Rivest,
+Shamir and Adleman) algorithm and a few helpers.
 
 @deffn Procedure make-rsa-public-key n e
 Returns an RSA public key object containing the modulus @var{n} and
@@ -1071,10 +1070,9 @@ Returns the @emph{modulus} of @var{key}.
 Returns the @emph{public exponent} of @var{key}.
 @end deffn
 
-@deffn Procedure rsa-public-key-from-bytevector bv
-Parses the bytevector @var{bv} as an ASN.1 DER encoded public RSA key.
-The return value can be used with the other procedures in this
-library.
+@deffn Procedure rsa-public-key-from-bytevector bytevector
+Parses @var{bytevector} as an ASN.1 DER encoded public RSA key. The
+return value can be used with the other procedures in this library.
 @end deffn
 
 @deffn Procedure rsa-public-key-length key
@@ -1088,32 +1086,154 @@ Returns the number of 8-bit bytes required to store the modulus of
 @var{key}.
 @end deffn
 
+@deffn Procedure make-rsa-private-key n e d [p q exponent1 exponent2 coefficient]
+Returns an RSA private key object with the given modulus @var{n},
+public exponent @var{e}, and private exponent @var{d}.
+
+The other parameters are used to improve the efficiency of
+@code{rsa-encrypt}. They are optional and will be computed if they are
+omitted.
+@end deffn
+
+@deffn Procedure rsa-private-key? obj
+True if @var{obj} is a private RSA key.
+@end deffn
+
+@deffn Procedure rsa-private-key-n key
+@end deffn
+@deffn Procedure rsa-private-key-modulus key
+Returns the @emph{modulus} of @var{key}.
+@end deffn
+
+@deffn Procedure rsa-private-key-public-exponent key
+Returns the @emph{public exponent} of @var{key}. This exponent is used
+for encryption and signature verification.
+@end deffn
+
+@deffn Procedure rsa-private-key-d key
+@end deffn
+@deffn Procedure rsa-private-key-private-exponent key
+Returns the @emph{private exponent} of @var{key}. This exponent is
+used for decryption and signature creation.
+@end deffn
+
+@deffn Procedure rsa-private-key-prime1 key
+@end deffn
+@deffn Procedure rsa-private-key-prime2 key
+These two procedures return the first and second prime factors
+(@math{p},@math{q}) of the modulus (@math{n=pq}).
+@end deffn
+
+@deffn Procedure rsa-private-key-exponent1 key
+This should be equivalent to @code{(mod d (- p 1))}. It is used to
+speed up @code{rsa-decrypt}.
+@end deffn
+
+@deffn Procedure rsa-private-key-exponent2 key
+This should be equivalent to @code{(mod d (- q 1))}. It is used to
+speed up @code{rsa-decrypt}.
+@end deffn
+
+@deffn Procedure rsa-private-key-coefficient key
+This should be equivalent to @code{(expt-mod q -1 p)}. It is used to
+speed up @code{rsa-decrypt}.
+@end deffn
+
+@deffn Procedure rsa-private->public key
+Uses the @emph{modulus} and @emph{public exponent} of @var{key} to
+construct a public RSA key object.
+@end deffn
+
+@deffn Procedure rsa-private-key-from-bytevector bytevector
+Parses @var{bytevector} as an ASN.1 DER encoded private RSA key. The
+return value can be used with the other procedures in this library.
+@end deffn
+
+@deffn Procedure rsa-private-key-from-pem-file filename
+Opens the file and reads a private RSA key. The file should be in
+Privacy Enhanced Mail (PEM) format and contain an ASN.1 DER encoded
+private RSA key.
+
+Encrypted keys are currently not supported.
+@end deffn
+
 @deffn Procedure rsa-encrypt plaintext key
 Encrypts the @var{plaintext} integer using the @var{key}, which is
 either a public or private RSA key.
+
+@var{plaintext} must be an exact integer that is less than the modulus
+of @var{key}.
 @end deffn
 
-@c @deffn Procedure rsa-decrypt
-@c @end deffn
+@deffn Procedure rsa-decrypt ciphertext key
+Decrypts the @var{ciphertext} integer using the @var{key}, which
+must be a private RSA key.
+
+@var{ciphertext} must be an exact integer that is less than the
+modulus of @var{key}.
+
+@example
+(import (weinholt crypto rsa))
+(let ((key (make-rsa-private-key 3233 17 2753)))
+  (rsa-decrypt (rsa-encrypt 42 key) key))
+@result{} 42
+@end example
+@end deffn
+
+@deffn Procedure rsa-decrypt/blinding ciphertext key
+This performs the same function as @code{rsa-decrypt}, but it uses RSA
+blinding. It has been shown that the private key can be recovered by
+measuring the time it takes to run the RSA decryption function. Use
+RSA blinding to protect against these timing attacks.
+
+For more technical information on the subject, see Paul C.@: Kocher's
+article
+@url{http://www.cryptography.com/resources/whitepapers/TimingAttacks.pdf,
+Timing Attacks on Implementations of Diffie-Hellman@comma{}
+RSA@comma{} DSS@comma{} and Other Systems}.
+@end deffn
+
 It is often not enough to just use the plain encryption and decryption
 procedures; a protocol for what to put in the plaintext should also be
 used. PKCS #1 (RFC@: 3447) is a standard for how to perform RSA
 encryption and signing with padding. New protocols should use one of
 the other protocols from the RFC.
 
-@deffn Procedure rsa-pkcs1-encrypt plaintext key
-Pads and encrypts the @var{plaintext} bytevector using @var{key}, a
-public RSA key. The return value is an integer. (The corresponding
--decrypt procedure is missing).
+@deffn Procedure rsa-pkcs1-encrypt plaintext public-key
+Pads and encrypts the @var{plaintext} bytevector using
+@var{public-key}, a public RSA key. The return value is an integer.
+
+The plaintext can't be longer than the length of the key modulus, in
+bytes, minus 11.
 @end deffn
 
-@deffn Procedure rsa-pkcs1-decrypt-signature signature key
+@deffn Procedure rsa-pkcs1-decrypt ciphertext private-key
+The inverse of @var{rsa-pkcs1-encrypt}. Decrypts the @var{ciphertext}
+integer using @var{private-key}, a private RSA key. The padding is
+then checked for correctness and removed.
+
+@example
+(import (weinholt crypto rsa))
+(let ((key (make-rsa-private-key
+            288412728347463293650191476303670753583
+            65537
+            190905048380501971055612558936725496993)))
+  (utf8->string
+   (rsa-pkcs1-decrypt
+    (rsa-pkcs1-encrypt (string->utf8 "Hello")
+                       (rsa-private->public key))
+    key)))
+@result{} "Hello"
+@end example
+@end deffn
+
+@deffn Procedure rsa-pkcs1-decrypt-signature signature public-key
 Decrypts the signature (a bytevector) contained in the @var{signature}
-integer by using the @var{key}. The signature initially contains PKCS
-#1 padding, but this is removed.
+integer by using the @var{public-key}. The signature initially
+contains PKCS #1 padding, but this is removed.
 @end deffn
 
-@deffn Procedure rsa-pkcs1-decrypt-digest signature key
+@deffn Procedure rsa-pkcs1-decrypt-digest signature public-key
 This performs the same operation as
 @code{rsa-pkcs1-decrypt-signature}, except it then treats the
 decrypted signature as a DER encoded DigestInfo. The return value is a
@@ -1125,6 +1245,8 @@ Version history:
 @itemize
 @item
 @code{(1 0)} -- Initial version.
+@item
+@code{(1 1)} -- Implemented private key operations.
 @end itemize
 
 @c ======================================================================

@@ -17,7 +17,7 @@
 
 ;; Private parsing, formatting, stuff
 
-(library (weinholt net ssh private (1 0 20101107))
+(library (weinholt net ssh private (1 0 20101201))
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data
@@ -31,7 +31,7 @@
           (srfi :26 cut)
           (weinholt bytevectors)
           (weinholt crypto dsa)
-          (weinholt crypto rsa)
+          (weinholt crypto rsa (1 (>= 1)))
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
           (weinholt net buffer)
@@ -39,8 +39,8 @@
           (weinholt text strings))
 
   (define (private->public key)
-    (cond #;((rsa-private-key? key)
-             (rsa-private->public key))
+    (cond ((rsa-private-key? key)
+           (rsa-private->public key))
           ((dsa-private-key? key)
            (dsa-private->public key))
           (else
