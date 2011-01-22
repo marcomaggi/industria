@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -148,7 +148,7 @@
 ;; syntax can handle non-constant offsets. Removed another unnecessary
 ;; size check in pack!. Added documentation and examples.
 
-(library (weinholt struct pack (1 4 20100918))
+(library (weinholt struct pack (1 4 20110122))
   (export format-size pack pack! unpack get-unpack)
   (import (rnrs)
           (for (prefix (weinholt struct pack-aux (1 0)) aux:)
@@ -360,7 +360,7 @@
           #'get-unpack**)))))
 
   (define (bytevector-zero! bv start end)
-    (do ((i start (+ start 1)))
+    (do ((i start (+ i 1)))
         ((= i end))
       (bytevector-u8-set! bv i 0)))
 

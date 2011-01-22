@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -234,5 +234,11 @@ the format string. Then see if pack/unpack gives the expected result."
 
 (check (let-values ((x (unpack (car '("4C")) #vu8(1 2 3 4)))) x)
        => '(1 2 3 4))
+
+(check (let ((zero 0)
+             (bv (make-bytevector 8 1)))
+         (pack! "!L" bv (+ zero 2) #xFFFFFFFF)
+         bv)
+       => #vu8(1 1 0 0 255 255 255 255))
 
 (check-report)
