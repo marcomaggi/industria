@@ -35,7 +35,7 @@ R<sup><small>6</small></sup>RS
 This manual is for the Industria libraries, a collection of
 @rnrs{} Scheme libraries.
 
-Copyright @copyright{} 2010 G@"oran Weinholt @email{goran@@weinholt.se}.
+Copyright @copyright{} 2010, 2011 G@"oran Weinholt @email{goran@@weinholt.se}.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document

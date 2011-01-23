@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; Demonstration SSH client
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
         (weinholt crypto rsa)
         (weinholt crypto sha-1)
         (weinholt crypto ssh-public-key (1))
+        (weinholt net dns numbers)
+        (weinholt net dns types)
         (weinholt net ssh)
         (weinholt net tcp)
         (weinholt text base64))
@@ -46,17 +48,21 @@
   (print (ssh-public-key-random-art key))
   (print key)
   (let ((key-bv (ssh-public-key->bytevector key)))
-    (print (base64-encode key-bv))
+    (print hostname " "
+           (cond ((rsa-public-key? key) "ssh-rsa ")
+                 ((dsa-public-key? key) "ssh-dsa "))
+           (base64-encode key-bv))
     ;; RFC4255
-    (print (if (string-index hostname #\.)
-               (string-append hostname ".")
-               hostname)
-           " SSHFP "
-           (cond ((rsa-public-key? key) 1)
-                 ((dsa-public-key? key) 2))
-           " 1 "                        ;sha-1
-           (string-downcase
-            (sha-1->string (sha-1 key-bv))))))
+    (display "\tSSHFP\t")
+    (dns-resource-print (current-output-port) 80
+                        (make-dns-resource/SSHFP
+                         '() 0 (dns-class IN)
+                         (cond ((rsa-public-key? key) (dns-sshfp-algorithm RSA))
+                               ((dsa-public-key? key) (dns-sshfp-algorithm DSA)))
+                         (dns-sshfp-type SHA-1)
+                         (sha-1->bytevector (sha-1 key-bv))))
+    (newline)))
+
 
 (define (main hostname portname)
   (print-key hostname (get-key hostname portname "ssh-dss"))

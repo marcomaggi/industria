@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -20,24 +20,13 @@
 ;; This is a work in progress.
 
 ;; STD0013 Domain name system
-;; RFC1034: DOMAIN NAMES - CONCEPTS AND FACILITIES
-;; RFC1035: DOMAIN NAMES - IMPLEMENTATION AND SPECIFICATION
-
-;; RFC1035 is updated by RFC1101, RFC1183, RFC1348, RFC1876, RFC1982,
-;; RFC1995, RFC1996, RFC2065, RFC2136, RFC2181, RFC2137, RFC2308,
-;; RFC2535, RFC2845, RFC3425, RFC3658, RFC4033, RFC4034, RFC4035,
-;; RFC4343.
 
 ;; Current errata: http://www.rfc-editor.org/errata_search.php?rfc=1035
 
-;; Constants are here: http://www.iana.org/assignments/dns-parameters
-
 ;; labels          63 octets or less
 ;; names           255 octets or less
-;; TTL             positive values of a signed 32 bit number.
 
-;; XXX: The fact that TTLs are s32 means that there's a gotcha when
-;; encoding large extended rcodes.
+;; TODO: handle truncation (see RFC2181)
 
 ;; UDP messages can be at most 512 bytes. EDNS0 can extend this to
 ;; 65536, but this library uses 4096, which is pretty standard and
@@ -49,471 +38,97 @@
 
 ;; http://www.ietf.org/dyn/wg/charter/dnsext-charter.html
 
-(library (weinholt net dns (0 0 20101121))
-  (export print-dns-message
-          make-normal-query
+(library (weinholt net dns (1 0 20110123))
+  (export print-dns-message print-dns-resource
           put-dns-message
           put-dns-message/delimited
           parse-dns-message
-          parse-dns-message/delimited
+          get-bytevector-dns
+
+          dns-labels->string
+          dns-labels->ustring
+          string->dns-labels
 
           make-dns-message dns-message?
           dns-message-id dns-message-opcode dns-message-rcode
-          dns-message-flagbits dns-message-question dns-message-authority
+          dns-message-flags dns-message-question
+          dns-message-answer dns-message-authority
           dns-message-additional
 
-          make-question question?
-          question-qname question-qtype question-qclass
-          question=?
+          make-dns-question dns-question?
+          dns-question-name dns-question-type dns-question-class
+          dns-question=?
 
-          falsified-reply?
-
-          rrtypes classes opcodes rcodes
-
-          ;; TODO: export all these... or export them in a syntax or
-          ;; something else. Lots of exports are probably missing.
-          rr-A rr-NS rr-CNAME rr-SOA rr-PTR rr-HINFO
-          rr-MINFO rr-MX rr-TXT rr-AAAA rr-SRV rr-DNAME rr-OPT
-          rr-DS rr-SSHFP rr-RRSIG rr-NSEC rr-DNSKEY rr-TSIG
-
-          rr-AXFR rr-MAILB rr-MAILA rr-*
-
-          class-IN class-CH class-HS class-*
-
-          flag-response flag-authoritative-answer flag-truncated
-          flag-recursion-desired flag-recursion-available
-          flag-authentic-data flag-checking-disabled
-
-          edns-flag-DO edns-flag-dnssec-answer-ok
-
-          opcode-QUERY opcode-STATUS
-
-          rcode-NOERROR rcode-FORMERR rcode-SERVFAIL rcode-NXDOMAIN
-          rcode-NOTIMP rcode-REFUSED
-          )
+          make-normal-dns-query
+          falsified-dns-reply?)
   (import (rnrs)
-          (only (srfi :1 lists) iota append-map filter-map)
           (except (srfi :13 strings) string-copy string->list string-titlecase
                   string-upcase string-downcase string-hash string-for-each)
           (srfi :14 char-sets)
           (srfi :19 time)
+          (srfi :26 cut)
+          (srfi :39 parameters)
           (weinholt bytevectors)
           (weinholt crypto entropy)
+          (weinholt net dns numbers (1))
+          (weinholt net dns types (1))
+          (weinholt net dns private (1))
           (weinholt struct pack)
-          (weinholt text base64)
-          (weinholt text strings))
+          (weinholt text punycode))
 
   (define (print . x) (for-each display x) (newline))
-  (define (compose f g) (lambda (x) (f (g x))))
 
-  (define ash fxarithmetic-shift-left)
-
-;;; Constants and types
-
-  (define (integer->rrtype x)
-    (cond ((assv x rrtypes) => cdr)
-          (else (string->symbol (string-append "TYPE"
-                                               (number->string x))))))
-
-  (define-syntax define-constants
-    (lambda (x)
-      (define (symcat prefix name)
-        (datum->syntax name (string->symbol (string-append
-                                             (symbol->string (syntax->datum prefix))
-                                             (symbol->string (syntax->datum name))))))
-      (syntax-case x ()
-        ((_ listname prefix (name int) ...)
-         (with-syntax (((prefixed-names ...)
-                        (map (lambda (n) (symcat #'prefix n))
-                             #'(name ...))))
-           #`(begin
-               (define listname '((int . name) ...))
-               (define prefixed-names int) ...))))))
-
-  (define-constants
-   rrtypes rr-
-   (A            1) ;a host address                               [RFC1035]
-   (NS           2) ;an authoritative name server                 [RFC1035]
-   (MD           3) ;a mail destination (Obsolete - use MX)       [RFC1035]
-   (MF           4) ;a mail forwarder (Obsolete - use MX)         [RFC1035]
-   (CNAME        5) ;the canonical name for an alias              [RFC1035]
-   (SOA          6) ;marks the start of a zone of authority       [RFC1035]
-   (MB           7) ;a mailbox domain name (EXPERIMENTAL)         [RFC1035]
-   (MG           8) ;a mail group member (EXPERIMENTAL)           [RFC1035]
-   (MR           9) ;a mail rename domain name (EXPERIMENTAL)     [RFC1035]
-   (NULL         10) ;a null RR (EXPERIMENTAL)                    [RFC1035]
-   (WKS          11) ;a well known service description            [RFC1035]
-   (PTR          12) ;a domain name pointer                       [RFC1035]
-   (HINFO        13) ;host information                            [RFC1035]
-   (MINFO        14) ;mailbox or mail list information            [RFC1035]
-   (MX           15) ;mail exchange                               [RFC1035]
-   (TXT          16) ;text strings                                [RFC1035]
-   (RP           17) ;for Responsible Person                      [RFC1183]
-   (AFSDB        18) ;for AFS Data Base location                  [RFC1183]
-   (X25          19) ;for X.25 PSDN address                       [RFC1183]
-   (ISDN         20) ;for ISDN address                            [RFC1183]
-   (RT           21) ;for Route Through                           [RFC1183]
-   (NSAP         22) ;for NSAP address, NSAP style A record       [RFC1706]
-   (NSAP-PTR     23) ;for domain name pointer, NSAP style         [RFC1348]
-   (SIG          24) ;for security signature                      [RFC4034][RFC3755][RFC2535]
-   (KEY          25) ;for security key                            [RFC4034][RFC3755][RFC2535]
-   (PX           26) ;X.400 mail mapping information              [RFC2163]
-   (GPOS         27) ;Geographical Position                       [RFC1712]
-   (AAAA         28) ;IP6 Address                                 [RFC3596]
-   (LOC          29) ;Location Information                        [RFC1876]
-   (NXT          30) ;Next Domain - OBSOLETE                      [RFC3755][RFC2535]
-   (EID          31) ;Endpoint Identifier                         [Patton]
-   (NIMLOC       32) ;Nimrod Locator                              [Patton]
-   (SRV          33) ;Server Selection                            [RFC2782]
-   (ATMA         34) ;ATM Address                                 [ATMDOC]
-   (NAPTR        35) ;Naming Authority Pointer                    [RFC2915][RFC2168]
-   (KX           36) ;Key Exchanger                               [RFC2230]
-   (CERT         37) ;CERT                                        [RFC4398]
-   (A6           38) ;A6 (Experimental)                           [RFC3226][RFC2874]
-   (DNAME        39) ;DNAME                                       [RFC2672]
-   (SINK         40) ;SINK                                        [Eastlake]
-   (OPT          41) ;OPT                                         [RFC2671]
-   (APL          42) ;APL                                         [RFC3123]
-   (DS           43) ;Delegation Signer                           [RFC4034][RFC3658]
-   (SSHFP        44) ;SSH Key Fingerprint                         [RFC4255]
-   (IPSECKEY     45) ;IPSECKEY                                    [RFC4025]
-   (RRSIG        46) ;RRSIG                                       [RFC4034][RFC3755]
-   (NSEC         47) ;NSEC                                        [RFC4034][RFC3755]
-   (DNSKEY       48) ;DNSKEY                                      [RFC4034][RFC3755]
-   (DHCID        49) ;DHCID                                       [RFC4701]
-   (NSEC3        50) ;NSEC3                                       [RFC5155]
-   (NSEC3PARAM   51) ;NSEC3PARAM                                  [RFC5155]
-   (HIP          55) ;Host Identity Protocol                      [RFC5205]
-   (NINFO        56) ;NINFO                                       [Reid]
-   (RKEY         57) ;RKEY                                        [Reid]
-   (SPF          99) ;                                            [RFC4408]
-   (UINFO        100) ;                                           [IANA-Reserved]
-   (UID          101) ;                                           [IANA-Reserved]
-   (GID          102) ;                                           [IANA-Reserved]
-   (UNSPEC       103) ;                                           [IANA-Reserved]
-   (TKEY         249) ;Transaction Key                            [RFC2930]
-   (TSIG         250) ;Transaction Signature                      [RFC2845]
-   (IXFR         251) ;incremental transfer                       [RFC1995]
-   (AXFR         252) ;transfer of an entire zone                 [RFC1035]
-   (MAILB        253) ;mailbox-related RRs (MB, MG or MR)         [RFC1035]
-   (MAILA        254) ;mail agent RRs (Obsolete - see MX)         [RFC1035]
-   (*            255) ;A request for all records                  [RFC1035]
-   (TA           32768) ;DNSSEC Trust Authorities                 [Weiler]
-   (DLV          32769) ;DNSSEC Lookaside Validation              [RFC4431]
-   )
-
-  (define (pseudo-rr? r)
-    ;; Returns #t if the given RR type should never occur in zone
-    ;; data.
-    (or (<= 128 r 255)                  ;Q and Meta
-        (= r rr-OPT)
-        (= r 0)))
-
-  (define (integer->class x)
-    (cond ((assv x classes) => cdr)
-          (else (string->symbol (string-append "CLASS"
-                                               (number->string x))))))
-
-  (define-constants
-   classes class-
-   (IN 1)                               ;the Internet
-   (CH 3)                               ;the CHAOS class
-   (HS 4)                               ;Hesiod
-   (NONE 254)                           ;[RFC2136]
-   (* 255))                             ;any class
-
-  (define flag-QR #b1000000000000000)   ;Query=0/response=1
-  (define flag-AA #b0000010000000000)   ;Authoritative answer
-  (define flag-TC #b0000001000000000)   ;message was TrunCated
-  (define flag-RD #b0000000100000000)   ;Recursion Desired
-  (define flag-RA #b0000000010000000)   ;Recursion Available
-  (define flag-Z  #b0000000001000000)   ;Reserved, set to zero
-  ;; DNS Security Extensions, RFC2535, RFC3655
-  (define flag-AD #b0000000000100000)   ;Authentic Data
-  (define flag-CD #b0000000000010000)   ;Checking Disabled
-
-  (define flag-mask (fxior flag-QR flag-AA flag-TC flag-RD
-                           flag-RA flag-AD flag-CD))
-
-  (define flag-response flag-QR)
-  (define flag-authoritative-answer flag-AA)
-  (define flag-truncated flag-TC)
-  (define flag-recursion-desired flag-RD)
-  (define flag-recursion-available flag-RA)
-  (define flag-authentic-data flag-AD)
-  (define flag-checking-disabled flag-CD)
-
-  (define edns-flag-DO #b1000000000000000) ;DNSSEC answer OK [RFC4035][RFC3225]
-
-  (define edns-flag-dnssec-answer-ok edns-flag-DO)
-
-  (define-constants
-   opcodes opcode-
-   (QUERY 0)
-   (IQUERY 1)                           ;obsoleted by RFC3425
-   (STATUS 2))
-
-  ;; Mnemonics from the IANA dns-parameters file
-  (define-constants
-   rcodes rcode-
-   (NOERROR   0) ;No Error                             [RFC1035]
-   (FORMERR   1) ;Format Error                         [RFC1035]
-   (SERVFAIL  2) ;Server Failure                       [RFC1035]
-   (NXDOMAIN  3) ;Non-Existent Domain                  [RFC1035]
-   (NOTIMP    4) ;Not Implemented                      [RFC1035]
-   (REFUSED   5) ;Query Refused                        [RFC1035]
-   (YXDOMAIN  6) ;Name Exists when it should not       [RFC2136]
-   (YXRRSET   7) ;RR Set Exists when it should not     [RFC2136]
-   (NXRRSET   8) ;RR Set that should exist does not    [RFC2136]
-   (NOTAUTH   9) ;Server Not Authoritative for zone    [RFC2136]
-   (NOTZONE  10) ;Name not contained in zone           [RFC2136]
-   ;; EDNS0:
-   (BADVERS  16) ;Bad OPT Version                      [RFC2671]
-   (BADSIG   16) ;TSIG Signature Failure               [RFC2845]
-   (BADKEY   17) ;Key not recognized                   [RFC2845]
-   (BADTIME  18) ;Signature out of time window         [RFC2845]
-   (BADMODE  19) ;Bad TKEY Mode                        [RFC2930]
-   (BADNAME  20) ;Duplicate key name                   [RFC2930]
-   (BADALG   21) ;Algorithm not supported              [RFC2930]
-   (BADTRUNC 22) ;Bad Truncation                       [RFC4635]
-   )
-
+;;; Types
 
   (define-record-type dns-message
-    (fields id opcode rcode flagbits
-            question                    ;list of type question
-            ;; lists of type resource
-            answer authority additional))
+    (fields id opcode rcode flags
+            question                      ;list of questions
+            answer authority additional)) ;lists of resources
 
-  (define-record-type question
-    (fields qname qtype qclass))
+  (define-record-type dns-question
+    (fields name type class))
 
-  (define (question=? x y)
-    (and (= (question-qclass x) (question-qclass y))
-         (= (question-qtype x) (question-qtype y))
-         (equal? (question-qname x) (question-qname y))))
-
-  ;; (define (question-ci=? x y)
-  ;;   (and (= (question-qclass x) (question-qclass y))
-  ;;        (= (question-qtype x) (question-qtype y))
-  ;;        (equal? (question-qname x) (question-qname y))))
-
-  ;; (define question-ci-hash
-  ;;   (let ((mix-it-up (rand #x1000000)))
-  ;;     (lambda (q)
-  ;;       (+ (abs (string-ci-hash (question-qname q)))
-  ;;          (question-qtype q)
-  ;;          (question-qclass q)
-  ;;          mix-it-up))))
-
-  (define-record-type resource
-    ;; The contents of rdata depends on the type and the class. It's a
-    ;; list of numbers, strings and bytevectors. It's in the same
-    ;; order as the fields in the master zone format. If the record
-    ;; type is unknown, rdata is a bytevector and not a list. A and
-    ;; AAAA records are lists with a single bytevector.
-    (fields name type class ttl rdata))
-
+  (define (dns-question=? x y)
+    (and (= (dns-question-class x) (dns-question-class y))
+         (= (dns-question-type x) (dns-question-type y))
+         (equal? (dns-question-name x) (dns-question-name y))))
 
 ;;; DNS message encoding
 
   (define (put-dns-message port msg)
-    ;; TODO: resource encoding, compression.
-    (define (put-labels x)
-      (for-each (lambda (label)
-                  (assert (< 0 (bytevector-length label) 64))
-                  (put-u8 port (bytevector-length label))
-                  (put-bytevector port label))
-                x)
-      (put-u8 port 0))
+    (define label-table
+      ;; TODO: case insensitive comparison can be used sometimes
+      (make-hashtable (lambda (x) (fold-left + 0 (bytevector->u8-list x)))
+                      bytevector=?))
     (define (put-question x)
-      (put-labels (question-qname x))
-      (put-bytevector port (pack "!SS" (question-qtype x) (question-qclass x))))
+      (put-labels port (dns-question-name x) label-table 0)
+      (put-bytevector port (pack "!SS" (dns-question-type x)
+                                 (dns-question-class x))))
     (define (put-resource x)
-      (put-labels (resource-name x))
-      (put-bytevector port (pack "!SSLS" (resource-type x) (resource-class x)
-                                 (resource-ttl x) (bytevector-length (resource-rdata x))))
-      ;; FIXME: handle the various types...
-      (put-bytevector port (resource-rdata x)))
-    (let ((etc (fxior (fxand (dns-message-flagbits msg) flag-mask)
-                      (ash (fxand (dns-message-opcode msg) #xf) 11)
+      (put-labels port (dns-resource-name x) label-table 0)
+      (let ((rdata
+             (call-with-bytevector-output-port
+               (cut dns-resource-wire-write <> label-table
+                    (+ (format-size "!SSLS") (port-position port)) x))))
+        (put-bytevector port (pack "!SSLS"
+                                   (dns-resource-type x)
+                                   (dns-resource-class x)
+                                   (dns-resource-ttl x)
+                                   (bytevector-length rdata)))
+        (put-bytevector port rdata)))
+    (let ((etc (fxior (fxand (dns-message-flags msg) flag-mask)
+                      (fxarithmetic-shift-left
+                       (fxand (dns-message-opcode msg) #xf) 11)
                       (fxand (dns-message-rcode msg) #xf))))
       (put-bytevector port (pack "!SSSSSS" (dns-message-id msg) etc
                                  (length (dns-message-question msg))
                                  (length (dns-message-answer msg))
                                  (length (dns-message-authority msg))
                                  (length (dns-message-additional msg))))
-      ;; TODO: the DNS can handle multiple questions in the same
-      ;; query, but this is not done... find out why.
       (for-each put-question (dns-message-question msg))
       (for-each put-resource (dns-message-answer msg))
       (for-each put-resource (dns-message-authority msg))
       (for-each put-resource (dns-message-additional msg))))
-
-;;; DNS message parsing
-
-  (define (bytevector-copy* bv start len)
-    (let ((ret (make-bytevector len)))
-      (bytevector-copy! bv start ret 0 len)
-      ret))
-
-
-  ;; TODO: handle truncation (see RFC2181)
-
-  (define (parse-labels bv start)
-    (let lp ((start start)
-             (ret '())
-             (acclen 0)
-             (used-offsets '())
-             (end #f)) ;the end offset of the label (does not follow pointers)
-      (when (> start (bytevector-length bv))
-        (error 'get-message "invalid pointer in a name" start))
-      ;; Detect pointer loops. If I was much too clever for anyone's
-      ;; good I might have translated these into circular lists
-      ;; instead, and even supported them in put-dns-message. Who
-      ;; wants an infinite domain name?
-      (when (memv start used-offsets) (error 'get-message "looping name"))
-      (let* ((len (bytevector-u8-ref bv start))
-             (tag (fxbit-field len 6 8)))
-        (cond ((zero? len)
-               (values (reverse ret) (or end (+ start 1))))
-              ((zero? tag)              ;normal label
-               (when (> (+ acclen len 1) 255) (error 'get-message "overlong name" acclen))
-               (lp (+ start 1 len)
-                   (cons (bytevector-copy* bv (+ start 1) len)
-                         ret)
-                   (+ acclen len 1) (cons start used-offsets) end))
-              ((= #b11 tag)             ;pointer
-               (lp (fxior (ash (fxand len #b111111) 8)
-                          (bytevector-u8-ref bv (+ start 1)))
-                   ret acclen (cons start used-offsets)
-                   (or end (+ start 2))))
-              ;; TODO: #b01 EDNS0 rfc2671
-              (else (error 'get-message "reserved bits in a length field" len))))))
-
-  (define (parse-type-bitmap bv start count)
-    ;; Suppose that one was to encode the type space in a 65536-bit
-    ;; number. That would be wasteful of space. But since there are
-    ;; big sequences of zero bits, those sequences are removed: Type
-    ;; bitmaps are sequences of a block window number, a length and a
-    ;; few bytes. The block window number is the upper eight bits of a
-    ;; type number, and the bytes represent an integer in little
-    ;; endian byte and big endian bit order (hello IBM!). The bits in
-    ;; this integer are ones for any types that should be included in
-    ;; the bitmap.
-
-    ;; TODO: test this with more than one block window
-    (if (< count 3)
-        '()
-        (let-values (((block len) (unpack "CC" bv start)))
-          (unless (and (< len 32) (< len count))
-            (error 'parse-type-bitmap "invalid length in type bitmap"))
-          (append
-           (append-map
-            (lambda (base i)
-              (let ((byte (bytevector-u8-ref bv i)))
-                (filter (lambda (type)
-                          ;; Remove Q, Meta etc
-                          (and type (not (pseudo-rr? type))))
-                        (map (lambda (b)
-                               (and (fxbit-set? byte b)
-                                    (fxior (fxarithmetic-shift-left block 8)
-                                           (+ base (- 7 b))))) ;network bit order!
-                             (iota 8 7 -1))))) ;reverse
-            (iota len 0 8)
-            (iota len (+ start 2)))
-           (parse-type-bitmap bv (+ start 2 len) (- count 2 len))))))
-
-  (define (parse-character-strings bv start count)
-    (if (zero? count)
-        '()
-        (let ((len (unpack "C" bv start)))
-          (cons (bytevector-copy* bv (+ start 1) len)
-                (parse-character-strings bv (+ start 1 len) (- count 1 len))))))
-
-  (define (parse-rdata bv type class start count)
-    ;; TODO: what about junk appended to the rdata? and what if
-    ;; there's less data than expected?
-    (cond ((or (= type rr-NS) (= type rr-CNAME) (= type rr-DNAME))
-           (let-values (((name _) (parse-labels bv start)))
-             (list name)))
-          ((= type rr-SOA)
-           (let*-values (((mname end-mname) (parse-labels bv start))
-                         ((rname end-rname) (parse-labels bv end-mname))
-                         ((serial refresh retry expire minimum)
-                          (unpack "!uLLLLL" bv end-rname)))
-             (list mname rname serial refresh retry expire minimum)))
-          ((= type rr-TXT)
-           (parse-character-strings bv start count))
-          ((= type rr-MX)
-           (let-values (((preference) (unpack "!uS" bv start))
-                        ((exchange _) (parse-labels bv (+ start 2))))
-             (list preference exchange)))
-          ((= type rr-DS)
-           (let-values (((key-tag algorithm digest-type) (unpack "!uSCC" bv start)))
-             (list key-tag algorithm digest-type
-                   (bytevector-copy* bv (+ start (format-size "!uSCC"))
-                                     (- count (format-size "!uSCC"))))))
-          ((= type rr-DNSKEY)
-           (let-values (((flags protocol algorithm) (unpack "!uSCC" bv start)))
-             (list flags protocol algorithm
-                   (bytevector-copy* bv (+ start (format-size "!uSCC"))
-                                     (- count (format-size "!uSCC"))))))
-          ((= type rr-RRSIG)
-           (let-values (((type-covered algorithm labels original-ttl
-                                       signature-expiration ;FIXME: check the type
-                                       signature-inception
-                                       key-tag)
-                         (unpack "!uSCClLLS" bv start))
-                        ((signers-name end-sn)
-                         (parse-labels bv (+ start (format-size "!uSCClLLS")))))
-             (list type-covered algorithm labels original-ttl
-                   signature-expiration signature-inception
-                   key-tag signers-name
-                   (bytevector-copy* bv end-sn (- (+ start count) end-sn)))))
-          ((= type rr-NSEC)
-           (let-values (((next-domain-name end-ndn) (parse-labels bv start)))
-             (cons next-domain-name (parse-type-bitmap
-                                     bv end-ndn (- ( + start count) end-ndn)))))
-          ((= type rr-SRV)
-           (let-values (((priority weight port) (unpack "!uSSS" bv start))
-                        ((target _) (parse-labels bv (+ start (format-size "!uSSS")))))
-             (list priority weight port target)))
-          ((or (= type rr-A) (= type rr-AAAA))
-           (list (bytevector-copy* bv start count)))
-          (else
-           (bytevector-copy* bv start count))))
-
-  ;; This procedure takes a complete DNS message, without any framing,
-  ;; and returns a dns-message record.
-  (define (parse-dns-message bv)
-    (define (questions start)
-      (let*-values (((qname end) (parse-labels bv start))
-                    ((qtype qclass) (unpack "!uSS" bv end)))
-        (values (make-question qname qtype qclass)
-                (+ end (format-size "!uSS")))))
-    (define (resources start)
-      ;; The RRs NS, SOA, CNAME and PTR can contain compressed labels
-      (let*-values (((name end) (parse-labels bv start))
-                    ((type class ttl rdlength) (unpack "!uSSlS" bv end)))
-        (values (make-resource name type class ttl
-                               (parse-rdata bv type class (+ end (format-size "!uSSlS"))
-                                            rdlength))
-                (+ end (format-size "!uSSlS") rdlength))))
-    (define (get f i start)
-      (let lp ((i i) (start start) (ret '()))
-        (if (zero? i) (values (reverse ret) start)
-            (let-values (((entry end) (f start)))
-              (lp (- i 1) end (cons entry ret))))))
-    (let-values (((id etc qdcount ancount nscount arcount) (unpack "!SSSSSS" bv)))
-      (let ((opcode (fxbit-field etc 11 15))
-            (rcode (fxbit-field etc 0 4)))
-        (let*-values (((qd end-qd) (get questions qdcount (format-size "!SSSSSS")))
-                      ((an end-an) (get resources ancount end-qd))
-                      ((ns end-ns) (get resources nscount end-an))
-                      ((ar end-ar) (get resources arcount end-ns)))
-          (make-dns-message id opcode rcode (fxand etc flag-mask)
-                            qd an ns ar)))))
 
   (define (put-dns-message/delimited port msg)
     (let-values (((p extract) (open-bytevector-output-port)))
@@ -522,217 +137,261 @@
         (put-bytevector port (pack "!S" (bytevector-length bv)))
         (put-bytevector port bv))))
 
-  (define (parse-dns-message/delimited port)
-    (parse-dns-message (get-bytevector-n port (get-unpack port "!S"))))
+;;; DNS message parsing
 
-;;; Printing in the master zone format
+  ;; This procedure takes a complete DNS message, without any framing,
+  ;; and returns a dns-message record.
+  (define (parse-dns-message bv)
+    (define (questions start)
+      (let*-values (((qname end) (parse-labels bv start))
+                    ((qtype qclass) (unpack "!uSS" bv end)))
+        (values (make-dns-question qname qtype qclass)
+                (+ end (format-size "!uSS")))))
+    (define (resources start)
+      (let*-values (((name end) (parse-labels bv start))
+                    ((type class ttl rdlength) (unpack "!uSSLS" bv end)))
+        (let* ((rdstart (+ end (format-size "!uSSLS")))
+               (resource (dns-resource-wire-read type name
+                                                 ttl class
+                                                 bv rdstart
+                                                 (+ rdstart rdlength))))
+          (values resource (+ end (format-size "!uSSLS") rdlength)))))
+    (define (get f i start)
+      (let lp ((i i) (start start) (ret '()))
+        (if (zero? i) (values (reverse ret) start)
+            (let-values (((entry end) (f start)))
+              (lp (- i 1) end (cons entry ret))))))
+    (let-values (((id etc qdcount ancount nscount arcount) (unpack "!6S" bv)))
+      (let ((opcode (fxbit-field etc 11 15))
+            (rcode (fxbit-field etc 0 4)))
+        (let*-values (((qd end-qd) (get questions qdcount
+                                        (format-size "!6S")))
+                      ((an end-an) (get resources ancount end-qd))
+                      ((ns end-ns) (get resources nscount end-an))
+                      ((ar end-ar) (get resources arcount end-ns)))
+          (make-dns-message id opcode rcode (fxand etc flag-mask)
+                            qd an ns ar)))))
 
-  (define (bytevector->hex bv)
+  (define (get-bytevector-dns port)
+    (get-bytevector-n port (get-unpack port "!S")))
+
+;;; Working in the master zone format
+
+  ;; Converts a list of labels (bytevectors) to the master file
+  ;; format, i.e. the string representation of a domain name. There
+  ;; will be a trailing dot. Does not handle IDNA. FIXME: should do
+  ;; error checking.
+  (define (dns-labels->string x)
     (call-with-string-output-port
       (lambda (p)
-        (do ((i 0 (+ i 1)))
-            ((= i (bytevector-length bv)))
-          (let ((v (bytevector-u8-ref bv i)))
-            (if (< v #x10) (write-char #\0 p))
-            (display (number->string v 16) p))))))
+        (if (null? x)
+            (display "." p)
+            (for-each (cut display-dns-label <> p) x)))))
 
-  (define (integer->algorithm x)
-    (case x
-      ((1) 'RSAMD5)
-      ((2) 'DH)
-      ((3) 'DSA)
-      ((4) 'ECC)
-      ((5) 'RSASHA1)
-      ((252) 'INDIRECT)
-      ((253) 'PRIVATEDNS)
-      ((254) 'PRIVATEOID)
-      (else x)))
-
-  (define (labels->string x)
-    (string-join (map utf8->string x) "." 'suffix))
-
-  (define (print-resource r)
-    ;; TODO: escape characters in labels...
-    (define (printl x)
-      (define (disp x)
-        (cond ((list? x)
-               (display (labels->string x)))
-              (else
-               (display x))))
-      (disp (car x))
-      (for-each (lambda (x)
-                  (display #\space)
-                  (disp x))
-                (cdr x))
-      (newline))
-    (let* ((class (integer->class (resource-class r)))
-           (type (integer->rrtype (resource-type r)))
-           (rdata (resource-rdata r)))
-      (for-each display
-                (list (labels->string (resource-name r)) "\t" (resource-ttl r)
-                      "\t" class "\t" type "\t"))
-      (cond ((and (eq? class 'IN) (eq? type 'A)
-                  (= 4 (bytevector-length (car rdata))))
-             ;; This doesn't actually have to be 4 bytes. But because
-             ;; everyone just assumed it did, they had to make a new
-             ;; type for IPv6.
-             (print (string-join (map number->string (bytevector->u8-list
-                                                      (car rdata)))
-                                 ".")))
-            ((and (eq? class 'IN) (eq? type 'AAAA)
-                  (= 16 (bytevector-length (car rdata))))
-             (print (string-join (map (lambda (x) (number->string x 16))
-                                      (bytevector->uint-list (car rdata)
-                                                             (endianness big) 2))
-                                 ":")))
-            ((memq type '(SOA NS MX CNAME SRV DNAME))
-             (printl rdata))
-            ((eq? type 'DS)
-             (print (car rdata) " " (integer->algorithm (cadr rdata))
-                    " " (caddr rdata)
-                    " " (bytevector->hex (cadddr rdata))))
-            ((eq? type 'DNSKEY)
-             (print (car rdata) " " (cadr rdata)
-                    " " (integer->algorithm (caddr rdata))
-                    " " (base64-encode (cadddr rdata)))
-             (when (fxbit-set? (car rdata) (- 16 1 7)) (print "; Zone-signing key"))
-             (when (fxbit-set? (car rdata) (- 16 1 15)) (print "; Secure Entry Point")))
-            ((eq? type 'RRSIG)
-             (display (integer->rrtype (car rdata))) (display #\space)
-             (display (integer->algorithm (cadr rdata))) (display #\space)
-             (do ((rdata (cddr rdata) (cdr rdata)))
-                 ((null? rdata))
-               (cond ((null? (cdr rdata))
-                      (print (base64-encode (car rdata))))
-                     ((list? (car rdata))
-                      (display (labels->string (car rdata)))
-                      (display #\space))
-                     (else
-                      (display (car rdata))
-                      (display #\space)))))
-            ((eq? type 'NSEC)
-             (display (labels->string (car rdata))) (display #\space)
-             (printl (map integer->rrtype (cdr rdata))))
-            ((eq? type 'TXT)
-             (do ((rdata rdata (cdr rdata)))
-                 ((null? rdata))
-               (display #\")
-               (do ((i 0 (+ i 1)))
-                   ((= i (bytevector-length (car rdata))))
-                 (let ((b (bytevector-u8-ref (car rdata) i)))
-                   (cond ((or (= b (char->integer #\\))
-                              (= b (char->integer #\")))
-                          (display #\\)
-                          (display (integer->char b)))
-                         ((<= 32 b 127)
-                          (display (integer->char b)))
-                         (else
-                          (display #\\)
-                          (if (< b 100) (display #\0))
-                          (if (< b 10) (display #\0))
-                          (display b)))))
-               (display #\")
-               (unless (null? (cdr rdata))
-                 (display #\space)))
-             (newline))
+  ;; Like dns-label->string, except it converts to a unicode string
+  ;; (IDNA). It might be preferable to use this in some applications,
+  ;; e.g. programs that deal with the WWW.
+  ;;; TODO: not complete, see RFC 5891
+  (define (dns-labels->ustring x)
+    (define (display-dns-label* l p)
+      (cond ((and (> (bytevector-length l) (string-length "xn--"))
+                  (equal? (subbytevector l 0 (string-length "xn--"))
+                          (string->utf8 "xn--")))
+             (display (punycode->string
+                       (subbytevector l (string-length "xn--")
+                                      (bytevector-length l)))
+                      p)
+             (display #\. p))
             (else
-             ;; RFC3597: Handling of Unknown DNS Resource Record (RR) Types
-             (cond ((bytevector? rdata)
-                    (display "\\# ")
-                    (display (bytevector-length rdata))
-                    (display #\space)
-                    (display (bytevector->hex rdata))
-                    (newline))
-                   (else
-                    ;; Well... looks like we've parsed some rdata, but
-                    ;; haven't made a printer for it yet.
-                    (printl rdata)
-                    (print ";;; WARNING! The above line is likely not in the master zone format!")))))))
+             (display-dns-label l p))))
+    (call-with-string-output-port
+      (lambda (p)
+        (if (null? x)
+            (display "." p)
+            (for-each (cut display-dns-label* <> p) x)))))
 
-  (define (print-dns-message x)
-    ;; Print a DNS message in the master zone format
-    (define (printq q)
-      (print ";" (labels->string (question-qname q))
-             "\t\t" (integer->class (question-qclass q))
-             "\t" (integer->rrtype (question-qtype q))))
-    (define (printo r)
-      (print "; " r))
-    (define (rcode->msg rcode)
-      (cond ((= rcode rcode-NOERROR) "No error")
-            ((= rcode rcode-FORMERR) "Format error (our fault)")
-            ((= rcode rcode-SERVFAIL) "Server failure (their fault)")
-            ((= rcode rcode-NXDOMAIN) "Name error (no such domain)")
-            ((= rcode rcode-NOTIMP) "Not implemented")
-            ((= rcode rcode-REFUSED) "Refused by the server")
-            (else rcode)))
-    (print ";; id: " (dns-message-id x) " opcode: " (dns-message-opcode x) " rcode: "
-           (rcode->msg (dns-message-rcode x)))
-    (display ";; flags:")
-    (for-each (lambda (flag name)
-                (when (= flag (fxand flag (dns-message-flagbits x)))
-                  (display #\space)
-                  (display name)))
-              (list flag-QR flag-AA flag-TC flag-RD flag-RA flag-Z flag-AD flag-CD)
-              (list "response" "authoritative-answer" "truncated" "recursion-desired"
-                    "recursion-available" "reserved-flag" "authentic-data"
-                    "checking-disabled"))
-    (newline)
-    (print ";; Question section")
-    (for-each printq (dns-message-question x))
-    (print ";; Answer section")
-    (for-each print-resource (dns-message-answer x))
-    (print ";; Authority section")
-    (for-each print-resource (dns-message-authority x))
-    (print ";; Additional section")
-    (for-each print-resource
-              (remp (lambda (r) (= (resource-type r) rr-OPT))
-                    (dns-message-additional x)))
-    (print ";; EDNS options")
-    (for-each printo
-              (filter (lambda (r) (= (resource-type r) rr-OPT))
-                      (dns-message-additional x))))
+  ;; Converts a DNS name from the master file format to the internal
+  ;; DNS labels format (which is a list of bytevectors). If you're
+  ;; parsing a file in the master file format you'll need to handle
+  ;; the case where the last character isn't a dot separately (append
+  ;; the $ORIGIN). This procedure should also be ok for converting
+  ;; user input to DNS labels.
+  (define (string->dns-labels str)
+    (define who 'string->dns-labels)
+    (define (get-label p)
+      (define (return codepoints unicode?)
+        (if unicode?
+            ;;; RFC 5891. TODO: this is not complete, but it's better
+            ;;; than inserting utf8 bytes directly in the label.
+            ;;; nameprep is missing.
+            (bytevector-append (string->utf8 "xn--")
+                               (string->punycode
+                                (string-normalize-nfc
+                                 (string-downcase
+                                  (list->string
+                                   (map integer->char (reverse codepoints)))))))
+            (u8-list->bytevector (reverse codepoints))))
+      (let lp ((chars '()) (unicode? #f))
+        (case (peek-char p)
+          ((#\.)
+           (get-char p)                 ;eat #\.
+           (return chars unicode?))
+          ((#\\)
+           (get-char p)                 ;eat #\\
+           (let ((c1 (get-char p)))
+             (unless (char? c1)
+               (error who "There is an invalid escape in a DNS label" str c1))
+             (if (char<=? #\0 c1 #\9)
+                 (let* ((c2 (get-char p))
+                        (c3 (get-char p)))
+                   (unless (and (char? c2) (char? c3)
+                                (char<=? #\0 c2 #\9)
+                                (char<=? #\0 c3 #\9))
+                     (error who "There is an invalid numeric escape in a DNS label"
+                            str c1 c2 c3))
+                   (let ((n (string->number (string c1 c2 c3))))
+                     (unless (<= 0 n 255)
+                       (error who "There is an invalid numeric escape in a DNS label" str n))
+                     (lp (cons n chars) unicode?)))
+                 (lp (cons (char->integer c1) chars) unicode?))))
+          (else
+           (if (port-eof? p)
+               (return chars unicode?)
+               (let ((c (get-char p)))
+                 (lp (cons (char->integer c) chars)
+                     (or unicode? (char>? c #\delete)))))))))
+    (let ((p (open-string-input-port str)))
+      (let lp ((labels #f))
+        (if (port-eof? p)
+            (if labels
+                (if (<= 0 (+ (length labels) (bytevectors-length labels) 1) 255)
+                    (reverse labels)
+                    (error who "This DNS name is too long" str))
+                (error who "Empty DNS names are not allowed (use . to represent the root)" str))
+            (let ((label (get-label p)))
+              (cond ((equal? label #vu8())
+                     (if (or (list? labels) (not (port-eof? p)))
+                         (error who "There is an empty DNS label" str)
+                         '()))
+                    ((not (< 0 (bytevector-length label) 64))
+                     (error who "There is an overlong DNS label" str (utf8->string label)))
+                    (else
+                     (lp (cons label (or labels '()))))))))))
+
+  (define print-dns-resource
+    (case-lambda
+      ((r) (print-dns-resource r (current-output-port)))
+      ((r port)
+       (let ((name (dns-resource-name r))
+             (class (integer->dns-class (dns-resource-class r)))
+             (type (integer->dns-rrtype (dns-resource-type r))))
+         (for-each (cut display <> port)
+                   (list (dns-labels->string name)
+                         "\t" (dns-resource-ttl r) ""
+                         "\t" class "\t" type "\t"))
+         (dns-resource-print port 40 r)
+         (newline port)
+         (let ((uname (dns-labels->ustring name)))
+           (unless (string=? (dns-labels->string name)
+                             uname)
+             (display "; (" port)
+             (display uname port)
+             (display ")\n" port)))))))
+
+  ;; Print a DNS message in the master zone format
+  (define print-dns-message
+    (case-lambda
+      ((x) (print-dns-message x (current-output-port)))
+      ((x port)
+       (define (print . x) (for-each (cut display <> port) x) (newline port))
+       (define (printq q)
+         (let ((name (dns-question-name q)))
+           (print ";" (dns-labels->string (dns-question-name q))
+                  "\t\t" (integer->dns-class (dns-question-class q))
+                  "\t" (integer->dns-rrtype (dns-question-type q)))
+           (unless (string=? (dns-labels->string name)
+                             (dns-labels->ustring name))
+             (print "; (" (dns-labels->ustring name) ")"))))
+       (define (printo r)
+         (print "; " r))
+       (define (rcode->msg rcode)
+         (cond ((= rcode (dns-rcode NOERROR)) "No error")
+               ((= rcode (dns-rcode FORMERR)) "Format error (our fault)")
+               ((= rcode (dns-rcode SERVFAIL)) "Server failure (their fault)")
+               ((= rcode (dns-rcode NXDOMAIN)) "Name error (no such domain)")
+               ((= rcode (dns-rcode NOTIMP)) "Not implemented")
+               ((= rcode (dns-rcode REFUSED)) "Refused by the server")
+               ((assv rcode (dns-rcode)) => cdr)
+               (else rcode)))
+       (print ";; id: " (dns-message-id x) " opcode: "
+              (assv (dns-message-opcode x) (dns-opcode))
+              " rcode: " (rcode->msg (dns-message-rcode x)))
+       (display ";; flags:" port)
+       (for-each (lambda (flag name)
+                   (when (= flag (fxand flag (dns-message-flags x)))
+                     (display #\space port)
+                     (display name port)))
+                 (list flag-QR flag-AA flag-TC flag-RD flag-RA
+                       flag-Z flag-AD flag-CD)
+                 '("response" "authoritative-answer" "truncated"
+                   "recursion-desired" "recursion-available"
+                   "reserved-flag" "authentic-data" "checking-disabled"))
+       (newline port)
+       (print "\n;; Question section")
+       (for-each printq (dns-message-question x))
+       (print "\n;; Answer section")
+       (for-each (cut print-dns-resource <> port) (dns-message-answer x))
+       (print "\n;; Authority section")
+       (for-each (cut print-dns-resource <> port) (dns-message-authority x))
+       (print "\n;; Additional section")
+       (let-values (((edns additional)
+                     (partition (lambda (r)
+                                  (= (dns-resource-type r) (dns-rrtype OPT)))
+                                (dns-message-additional x))))
+         (for-each (cut print-dns-resource <> port) additional)
+         (unless (null? edns)
+           (print "\n;; EDNS options")
+           (for-each printo edns))))))
 
 ;;; Helpers for making messages
 
-  (define (make-edns-resource udp-payload-size extended-rcode version flags options)
-    (make-resource '() rr-OPT udp-payload-size
-                   (bitwise-ior (bitwise-arithmetic-shift-left extended-rcode 24)
-                                (bitwise-arithmetic-shift-left version 16)
-                                (fxand #xffff flags))
-                   #vu8()))             ;FIXME: options
+  (define (make-edns-resource udp-payload-size extended-rcode version
+                              flags options)
+    (let ((name '())
+          (class udp-payload-size)
+          (ttl (bitwise-ior (bitwise-arithmetic-shift-left extended-rcode 24)
+                            (bitwise-arithmetic-shift-left version 16)
+                            (bitwise-and #xffff flags)))
+          (type (dns-rrtype OPT)))
+      ;; FIXME: options
+      (make-dns-resource/raw name ttl class type #vu8())))
 
-  (define (make-normal-query qname qtype qclass edns?)
-    ;; qname is a list of labels, e.g. ("slashdot" "org").
+  (define (make-normal-dns-query qname qtype edns?)
+    ;; qname is a DNS name
     (make-dns-message (bytevector->uint (make-random-bytevector 2))
-                      opcode-QUERY rcode-NOERROR
+                      (dns-opcode QUERY) (dns-rcode NOERROR)
                       (fxior flag-recursion-desired
                              #;flag-checking-disabled) ;DNSSEC?
                       ;; draft-wijngaards-dnsext-resolver-side-mitigation-01
-                      (list (make-question (map (compose string->utf8
-                                                         string-random-case)
-                                                qname)
-                                           qtype qclass))
+                      (list (make-dns-question (string->dns-labels
+                                                (string-random-case qname))
+                                               qtype (dns-class IN)))
                       '() '()
                       (if edns?
-                          (list (make-edns-resource 4096 0 0 edns-flag-dnssec-answer-ok
+                          (list (make-edns-resource 4096 0 0
+                                                    edns-flag-dnssec-answer-ok
                                                     '()))
                           '())))
-
 
   ;; Try to guess if the reply is false. False messages can appear if
   ;; an attacker is trying to poison your cache. He'll try to guess
   ;; which id and port number you used in your query and send a reply
-  ;; before the real server can.
-  (define (falsified-reply? q r)
+  ;; before the real reply arrives.
+  (define (falsified-dns-reply? q r)
     (or (not (= (dns-message-id r) (dns-message-id q)))
-        (not (= (dns-message-opcode r) opcode-QUERY))
+        (not (= (dns-message-opcode r) (dns-opcode QUERY)))
         (not (= (length (dns-message-question r)) 1))
-        (not (question=? (car (dns-message-question q))
-                         (car (dns-message-question r))))
-        (zero? (fxand (dns-message-flagbits r)
-                      flag-response))))
-
-
-  )
-
-
+        (not (dns-question=? (car (dns-message-question q))
+                             (car (dns-message-question r))))
+        (zero? (fxand (dns-message-flags r)
+                      flag-response)))))
