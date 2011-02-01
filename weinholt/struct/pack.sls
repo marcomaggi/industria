@@ -133,22 +133,7 @@
 ;; The calls to bytevector-zero! are there to put in zeros where the
 ;; padding is. The bitwise-and is to align the indices.
 
-;;; Version history
-
-;; (1 0) - Initial version.
-
-;; (1 1) - `unpack' can now be used as a function.
-
-;; (1 2) - added the format characters a and u
-
-;; (1 3) - added get-unpack. Removed the unnecessary size check in
-;; unpack.
-
-;; (1 4) - pack, get-unpack and format-size are syntax. The unpack
-;; syntax can handle non-constant offsets. Removed another unnecessary
-;; size check in pack!. Added documentation and examples.
-
-(library (weinholt struct pack (1 4 20110122))
+(library (weinholt struct pack (1 4 20110201))
   (export format-size pack pack! unpack get-unpack)
   (import (rnrs)
           (for (prefix (weinholt struct pack-aux (1 0)) aux:)
