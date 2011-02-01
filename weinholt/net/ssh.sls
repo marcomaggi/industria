@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -28,10 +28,11 @@
 
 ;; TODO: fast path for channel-data
 
-(library (weinholt net ssh (1 0 20101113))
+(library (weinholt net ssh (1 0 20110201))
   (export
     make-ssh-client make-ssh-server
     ssh-conn-peer-identification
+    ssh-conn-peer-kexinit
     ssh-conn-host-key
     ssh-conn-session-id
     ssh-finish-key-exchange
@@ -138,6 +139,7 @@
             (immutable outbuf)
             (mutable peer-identification)
             (mutable local-identification)
+            (mutable peer-kexinit)
             (mutable host-key)
             (mutable private-key)
             (mutable algorithms)
@@ -169,6 +171,7 @@
               outport
               (make-bytevector 35000 0)
               #vu8() #vu8()
+              'no-peer-kex-init-yet
               'no-public-key-yet
               'no-private-key
               (list (cons 'kex (guessed-kex-algorithm)))
@@ -486,7 +489,7 @@
     (ssh-conn-next-read-mac-set! conn #f))
 
 ;;; Starting connections
-  
+
   (define (bad-guess? local-kex peer-kex)
     (not (and (equal? (car (kexinit-kex-algorithms local-kex))
                       (car (kexinit-kex-algorithms peer-kex)))
@@ -526,6 +529,7 @@
              (algorithms (if (ssh-conn-client? conn)
                              (find-algorithms local-kex peer-kex)
                              (find-algorithms peer-kex local-kex))))
+        (ssh-conn-peer-kexinit-set! conn peer-kex)
         (trace "#;algorithms: " algorithms)
         (for-each (lambda (alg)
                     (unless (or (memq (car alg) '(lang-cs lang-sc))
