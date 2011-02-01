@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20101107))
+(library (weinholt net ssh connection (1 0 20110201))
   (export register-connection
           register-tcpip-forward
 
@@ -559,7 +559,7 @@
       ;; TODO: more types
       (cond ((string=? type "break")
              (make-channel-request/break recipient want-reply?
-                                         (read-uint32)))
+                                         (read-uint32 b)))
             ((string=? type "env")
              (let* ((name (read-string b))
                     (value (read-string b)))
