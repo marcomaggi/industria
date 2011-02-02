@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #!r6rs
 
-(library (weinholt crypto math (1 1 20101127))
-  (export invmod expt-mod div-mod)
+(library (weinholt crypto math (1 2 20110202))
+  (export invmod expt-mod div-mod sqrt-mod)
   (import (rnrs))
 
   (define (invmod a b)
@@ -50,4 +50,11 @@
   (define (div-mod num den p)
     (mod (* num (expt-mod den -1 p)) p))
 
-  )
+  (define (sqrt-mod n p)
+    (let ((pow (/ (+ p 1) 4)))
+      (unless (integer? pow)
+        (error 'sqrt-mod "Composite p is not supported" p))
+      (let ((ret (expt-mod n pow p)))
+        (unless (= (mod (* ret ret) p) n)
+          (error 'sqrt-mod "No square root found" n p))
+        ret))))
