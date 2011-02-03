@@ -1,5 +1,18 @@
 -*- mode: outline; coding: utf-8 -*-
 
+* Changes in version 1.2
+
+** (weinholt crypto ec): New library
+
+This new library implements basic elliptic curve cryptography over
+prime fields. It exports mathematical operators, some standard curves,
+and procedures for bytevector conversion of points.
+
+** (weinholt crypto ec dsa): New library for elliptic curve DSA
+
+This library is similar to (weinholt crypto dsa), except it works with
+elliptic curves.
+
 * Changes in version 1.1
 
 ** (weinholt bytevectors): Added bytevector=?/constant-time

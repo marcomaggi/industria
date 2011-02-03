@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -27,16 +27,19 @@
 
 ;; TODO: http://permalink.gmane.org/gmane.ietf.secsh/6520 ?
 
-(library (weinholt crypto ssh-public-key (1 0 20101101))
+(library (weinholt crypto ssh-public-key (1 1 20110201))
   (export get-ssh-public-key
           ssh-public-key->bytevector
           ssh-public-key-fingerprint
-          ssh-public-key-random-art)
+          ssh-public-key-random-art
+          ssh-public-key-algorithm)
   (import (only (srfi :13 strings) string-pad
-                string-join)
+                string-join string-prefix?)
           (except (rnrs) put-string)
           (weinholt bytevectors)
           (weinholt crypto dsa)
+          (weinholt crypto ec)
+          (weinholt crypto ec dsa)
           (weinholt crypto md5)
           (weinholt crypto rsa)
           (weinholt struct pack)
@@ -80,6 +83,7 @@
   ;; Reads a binary SSH public key. They are normally Base64 encoded
   ;; when stored in files.
   (define (get-ssh-public-key p)
+    (define who 'get-ssh-public-key)
     (let ((type (get-string p)))
       (cond ((string=? type "ssh-rsa")
              (let* ((e (get-mpint p))
@@ -91,12 +95,44 @@
                     (g (get-mpint p))
                     (y (get-mpint p)))
                (make-dsa-public-key p* q g y)))
+            ((string-prefix? "ecdsa-sha2-" type)
+             (let* ((id (get-string p)) ;curve ID
+                    (Q (get-mpint p)))  ;public point
+               (make-ecdsa-sha-2-public-key (id->curve id who) Q)))
             (else
              (error 'get-ssh-public-key
                     "Unknown public key algorithm"
                     type p)))))
 
+  (define (id->curve x who)
+    (cond ((string=? x "nistp256") nistp256)
+          ((string=? x "nistp384") nistp384)
+          ((string=? x "nistp521") nistp521)
+          (else
+           (error who "Unknown elliptic curve" x))))
+
+  (define (curve->id x who)
+    (cond ((elliptic-curve=? x nistp256) "nistp256")
+          ((elliptic-curve=? x nistp384) "nistp384")
+          ((elliptic-curve=? x nistp521) "nistp521")
+          ;; For every other curve, its ASN.1 OID in ASCII is used
+          (else
+           (error who "Unknown elliptic curve" x))))
+
+  (define (ssh-public-key-algorithm key)
+    (define who 'ssh-public-key-algorithm )
+    (cond ((rsa-public-key? key) "ssh-rsa")
+          ((dsa-public-key? key) "ssh-dss")
+          ((ecdsa-sha-2-public-key? key)
+           (string-append "ecdsa-sha2-"
+                          (curve->id (ecdsa-public-key-curve key) who)))
+          (else
+           (error 'ssh-public-key-algorithm
+                  "Unknown public key algorithm"
+                  key))))
+
   (define (ssh-public-key->bytevector key)
+    (define who 'ssh-public-key->bytevector)
     (call-with-bytevector-output-port
       (lambda (p)
         (cond ((rsa-public-key? key)
@@ -109,10 +145,19 @@
                (put-mpint p (dsa-public-key-q key))
                (put-mpint p (dsa-public-key-g key))
                (put-mpint p (dsa-public-key-y key)))
+              ((ecdsa-sha-2-public-key? key)
+               ;; This does not use point compression. If point
+               ;; compression could be used, then each ECDSA key would
+               ;; have two different fingerprints.
+               (let ((id (curve->id (ecdsa-public-key-curve key) who))
+                     (Q (elliptic-point->bytevector (ecdsa-public-key-Q key)
+                                                    (ecdsa-public-key-curve key))))
+                 (put-string p (string-append "ecdsa-sha2-" id))
+                 (put-string p id)
+                 (put-bytevector p (pack "!L" (bytevector-length Q)))
+                 (put-bytevector p Q)))
               (else
-               (error 'ssh-public-key->bytevector
-                      "Unknown public key algorithm"
-                      key))))))
+               (error who "Unknown public key algorithm" key))))))
 
   (define (ssh-public-key-fingerprint key)
     (string-join
@@ -125,12 +170,14 @@
   ;; TODO: bubblebabble
 
   (define (ssh-public-key-random-art key)
-    (random-art (md5->bytevector (md5 (ssh-public-key->bytevector key)))
-                (cond ((rsa-public-key? key)
-                       (string-append
-                        "RSA "
-                        (number->string (rsa-public-key-length key))))
-                      ((dsa-public-key? key)
-                       (string-append
-                        "DSA "
-                        (number->string (dsa-public-key-length key))))))))
+    (let-values (((prefix length)
+                  (cond ((rsa-public-key? key)
+                         (values "RSA" rsa-public-key-length))
+                        ((dsa-public-key? key)
+                         (values "DSA" dsa-public-key-length))
+                        ((ecdsa-public-key? key)
+                         (values "ECDSA" ecdsa-public-key-length))
+                        (else
+                         (values "UNKNOWN" (lambda (x) +nan.0))))))
+      (random-art (md5->bytevector (md5 (ssh-public-key->bytevector key)))
+                  (string-append prefix " " (number->string (length key)))))))

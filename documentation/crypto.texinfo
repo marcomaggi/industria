@@ -1311,36 +1311,46 @@ larger than the block size.
 @c ======================================================================
 @node crypto ssh-public-key
 @subsection SSH public key format conversion
-Use @code{(weinholt crypto ssh-public-key)} to convert public RSA and
-DSA keys from records to the binary SSH public key format, and the
-other way around. SSH is the name of a network protocol for secure
-terminal connections defined by RFCs 4250-4254. The key format is
-specified by RFC 4716.
+Use @code{(weinholt crypto ssh-public-key)} to convert public RSA,
+DSA, and ECDSA keys from records to the binary SSH public key format,
+and the other way around. SSH is the name of a network protocol for
+secure terminal connections defined by RFCs 4250-4254. The key format
+is specified by RFC 4716. ECDSA keys are specified by RFC 5656.
 
-The types used for RSA and DSA keys in this library are the same types
-used elsewhere.
+The types used for RSA, DSA and ECDSA keys in this library are the
+same types used elsewhere. The ECDSA keys must have the record type
+@code{ecdsa-sha-2-public-key}.
 
 Future work would be to implement parsing of the various textual
 formats that contain Base64 public SSH keys.
 
 @deffn Procedure get-ssh-public-key p
-Reads a public RSA/DSA key encoded in the SSH public key format from
-the binary input port @var{p}.
+Reads a public RSA/DSA/ECDSA key encoded in the SSH public key format
+from the binary input port @var{p}.
 @end deffn
 
 @deffn Procedure ssh-public-key->bytevector key
-Converts the public RSA/DSA @var{key} to the SSH public key format.
+Converts the public RSA/DSA/ECDSA @var{key} to the SSH public key
+format.
+@end deffn
+
+@deffn Procedure ssh-public-key-algorithm key
+Returns the SSH algorithm identifier of @var{key}. For RSA keys this
+is @code{"ssh-rsa"}, for DSA keys it is @code{"ssh-dss"}, and for
+ECDSA keys it is @code{"ecdsa-sha2-[identifier]"} where
+@code{[identifier]} identifies the curve.
 @end deffn
 
 @deffn Procedure ssh-public-key-fingerprint key
-The MD5 based fingerprint of the RSA/DSA key in the same format used
-by common SSH software and specified by RFC 4716.
+The MD5 based fingerprint of the RSA/DSA/ECDSA @var{key} in the same
+format used by common SSH software and specified by RFC 4716.
 @end deffn
 
 @deffn Procedure ssh-public-key-random-art key
-The random art of the RSA/DSA key. This is a visual representation of
-the key can is easier for humans to distinguish than fingerprints.
-This is the same art that OpenSSH's VisualHostKey feature displays.
+The random art of the RSA/DSA/ECDSA key. This is a visual
+representation of the key can is easier for humans to distinguish than
+fingerprints. This is the same art that OpenSSH's VisualHostKey
+feature displays.
 @cindex VisualHostKey
 @end deffn
 
@@ -1349,6 +1359,10 @@ Version history:
 @itemize
 @item
 @code{(1 0)} -- Initial version.
+@item
+@code{(1 1)} -- Added @code{ssh-public-key-algorithm}. Added support
+for ecdsa-sha2-* keys using the elliptic curves nistp256, nistp384,
+and nistp521.
 @end itemize
 
 @c ======================================================================
