@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 ;; This handles diffie-hellman-group-exchange-sha256 and
 ;; diffie-hellman-group-exchange-sha1.
 
-(library (weinholt net ssh kex-dh-gex (1 0 20101113))
+(library (weinholt net ssh kex-dh-gex (1 0 20110201))
   (export register-kex-dh-gex
           select-kex-dh-gex-group       ;parameter
 
@@ -306,7 +306,7 @@
               (let-values (((e) (kex-dh-gex-init-e arg)) ; e = g^x mod p
                            ((y f) (make-secret generator prime))) ; f = g^y mod p
                 (unless (< 1 e (- prime 1))
-                  (error 'kexdh "Bad kex-dh-gex-init"))
+                  (error 'kex-dh-gex "Bad kex-dh-gex-init"))
                 (let* ((hostkey (private->public private-key))
                        (K (expt-mod e y prime))
                        (H (apply hash-kex-data hash hash->bytevector
