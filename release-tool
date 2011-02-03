@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; release-tool - Release tool for Industria
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -61,6 +61,8 @@
         '(weinholt crypto crc)
         '(weinholt crypto des)
         '(weinholt crypto dsa)
+        '(weinholt crypto ec)
+        '(weinholt crypto ec dsa)
         '(weinholt crypto entropy)
         '(weinholt crypto hmac)
         '(weinholt crypto math)
@@ -80,13 +82,15 @@
         '(weinholt net irc fish)
         '(weinholt net irc)
         '(weinholt net otr)
+        ;;'(weinholt net ssh)
         '(weinholt net tcp)
         '(weinholt net tls simple)
         '(weinholt net tls)
         '(weinholt struct der)
         '(weinholt struct pack)
         '(weinholt text base64)
-        #;'(weinholt text punycode)
+        ;;'(weinholt text internet)
+        ;;'(weinholt text punycode)
         '(weinholt text random-art)))
 
 (define *implementations* '(chezscheme

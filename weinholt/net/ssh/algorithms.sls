@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -23,6 +23,9 @@
 ;; RFC4345 Improved Arcfour Modes for the Secure Shell (SSH) Transport
 ;; Layer Protocol.
 
+;; RFC5656 Elliptic Curve Algorithm Integration in the Secure Shell
+;; Transport Layer.
+
 ;; Describes a new kex that I haven't seen used yet:
 ;; RFC4432 RSA Key Exchange for the Secure Shell (SSH) Transport Layer
 ;; Protocol.
@@ -36,7 +39,7 @@
 ;; This describes the MAC algorithm umac-64@openssh.com:
 ;; RFC4418 UMAC: Message Authentication Code using Universal Hashing
 
-(library (weinholt net ssh algorithms (1 0 20101113))
+(library (weinholt net ssh algorithms (1 0 20110201))
   (export make-reader make-writer
           make-read-mac make-write-mac
           make-key-exchanger register-key-exchange
@@ -68,14 +71,15 @@
 
   ;; kex is short for key exchange.
   (define kexes
-    '("diffie-hellman-group-exchange-sha256" "diffie-hellman-group-exchange-sha1"
+    '(;;"ecdh-sha2-nistp256" "ecdh-sha2-nistp384" "ecdh-sha2-nistp521"
+      "diffie-hellman-group-exchange-sha256" "diffie-hellman-group-exchange-sha1"
       "diffie-hellman-group14-sha1" "diffie-hellman-group1-sha1"))
 
   (define preferred-kex-algorithms
     (make-parameter kexes (algfilter kexes)))
 
   (define keyalgs
-    '("ssh-rsa" "ssh-dss"))
+    '("ecdsa-sha2-nistp256" "ssh-rsa" "ssh-dss"))
 
   (define preferred-server-host-key-algorithms
     (make-parameter keyalgs (algfilter keyalgs)))

@@ -21,27 +21,64 @@
         (only (srfi :13 strings) string-index)
         (srfi :39 parameters)
         (weinholt crypto dsa)
+        (weinholt crypto ec dsa)
         (weinholt crypto rsa)
         (weinholt crypto sha-1)
         (weinholt crypto ssh-public-key (1))
         (weinholt net dns numbers)
         (weinholt net dns types)
         (weinholt net ssh)
+        (weinholt net ssh transport)
+        (weinholt net ssh userauth)
         (weinholt net tcp)
         (weinholt text base64))
 
 (define (print . x) (for-each display x) (newline))
 
-(define (get-key hostname portname algorithm)
+(define (open-connection hostname portname)
   (let-values (((in out) (tcp-connect hostname portname)))
-    (parameterize ((preferred-server-host-key-algorithms (list algorithm)))
-      (let ((conn (make-ssh-client in out)))
-        (ssh-finish-key-exchange conn)
-        (display "Server identification: ")
-        (write (utf8->string (ssh-conn-peer-identification conn)))
-        (newline)
-        (close-ssh conn)
-        (ssh-conn-host-key conn)))))
+    (let ((conn (make-ssh-client in out)))
+      (ssh-finish-key-exchange conn)
+      conn)))
+
+(define (reexchange conn algorithm)
+  ;; Key re-exchange.
+  (let ((local
+         (parameterize ((preferred-server-host-key-algorithms (list algorithm)))
+           (build-kexinit-packet conn))))
+    (put-ssh conn local)
+    (let lp ()
+      (let ((pkt (get-ssh conn)))
+        (cond ((kexinit? pkt)
+               (ssh-key-re-exchange conn pkt local)
+               (lp))
+              ((key-exchange-packet? pkt)
+               (unless (eq? (process-key-exchange-packet conn pkt) 'finished)
+                 (lp)))
+              (else
+               ;; XXX: pkt was probably something important, and now it's lost
+               (lp)))))))
+
+;; (define (userauth conn)
+;;   ;; User authentication
+;;   (define KEY (dsa-private-key-from-pem-file
+;;                "demo.pem"))
+;;   (put-ssh conn (make-service-request "ssh-userauth"))
+;;   (register-userauth (ssh-conn-registrar conn))
+;;   (register-userauth-public-key (ssh-conn-registrar conn))
+;;   ;; We want the ssh-connection service
+;;   (let ((req (make-userauth-request/public-key "industria" "ssh-connection"
+;;                                                (dsa-private->public KEY))))
+;;     (put-ssh conn (sign-userauth-request/public-key
+;;                    req (ssh-conn-session-id conn) KEY)))
+;;   #;(put-ssh conn (make-userauth-request/password "root" "ssh-connection" "toor"))
+;;   (let ((x (get-ssh conn)))
+;;     (unless (and (service-accept? x)
+;;                  (string=? (service-accept-name x) "ssh-userauth"))
+;;       (error 'blah "couldn't request ssh-userauth...")))
+;;   (unless (userauth-success? (get-ssh conn))
+;;     (error 'userauth "Can't log in..."))
+;;   (deregister-userauth (ssh-conn-registrar conn)))
 
 (define (print-key hostname key)
   (print (ssh-public-key-fingerprint key))
@@ -49,27 +86,60 @@
   (print key)
   (let ((key-bv (ssh-public-key->bytevector key)))
     (print hostname " "
-           (cond ((rsa-public-key? key) "ssh-rsa ")
-                 ((dsa-public-key? key) "ssh-dsa "))
+           (ssh-public-key-algorithm key) " "
            (base64-encode key-bv))
     ;; RFC4255
-    (display "\tSSHFP\t")
-    (dns-resource-print (current-output-port) 80
-                        (make-dns-resource/SSHFP
-                         '() 0 (dns-class IN)
-                         (cond ((rsa-public-key? key) (dns-sshfp-algorithm RSA))
-                               ((dsa-public-key? key) (dns-sshfp-algorithm DSA)))
-                         (dns-sshfp-type SHA-1)
-                         (sha-1->bytevector (sha-1 key-bv))))
-    (newline)))
+    (let ((algo (cond ((rsa-public-key? key) (dns-sshfp-algorithm RSA))
+                      ((dsa-public-key? key) (dns-sshfp-algorithm DSA))
+                      (else #f))))
+      (when algo
+        (display "\tSSHFP\t")
+        (dns-resource-print (current-output-port) 80
+                            (make-dns-resource/SSHFP
+                             '() 0 (dns-class IN)
+                             algo
+                             (dns-sshfp-type SHA-1)
+                             (sha-1->bytevector (sha-1 key-bv))))
+        (newline)))))
 
+;; Prints all of the server's host keys. It uses one new connection
+;; per host key.
+(define (scan-keys hostname portname)
+  (let ((conn (open-connection hostname portname)))
+    (let lp ((conn conn)
+             (algos (remove
+                     (ssh-public-key-algorithm (ssh-conn-host-key conn))
+                     (kexinit-server-host-key-algorithms
+                      (ssh-conn-peer-kexinit conn)))))
+      (print-key hostname (ssh-conn-host-key conn))
+      (close-ssh conn)
+      (unless (null? algos)
+        (lp (parameterize ((preferred-server-host-key-algorithms (list (car algos))))
+              (open-connection hostname portname))
+            (cdr algos))))))
+
+;; Prints all of the server's host keys. It uses one connection, but
+;; requires userauth.
+;; (define (getkeys hostname conn)
+;;   (for-each (lambda (algo)
+;;               (print "Switching to host key algorithm " algo)
+;;               (reexchange conn algo)
+;;               (print-key hostname (ssh-conn-host-key conn)))
+;;             (kexinit-server-host-key-algorithms
+;;              (ssh-conn-peer-kexinit conn))))
 
 (define (main hostname portname)
-  (print-key hostname (get-key hostname portname "ssh-dss"))
-  (print-key hostname (get-key hostname portname "ssh-rsa")))
+  #;
+  (let ((conn (open-connection hostname portname)))
+    (userauth conn)
+    (getkeys hostname conn)
+    (close-ssh conn))
+  (scan-keys hostname portname))
 
 ;; This is very incomplete. It should do userauth etc for a proper
 ;; demo.
+
+;; (ssh-debugging #b111)
 
 (apply
  (case-lambda
@@ -77,7 +147,7 @@
     (main hostname portname))
    ((who hostname)
     (main hostname "22"))
-   ((who)
+   ((who . _)
     (print "Usage: " who " hostname [port]")
     (exit 1)))
  (command-line))

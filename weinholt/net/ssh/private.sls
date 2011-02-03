@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 ;; Private parsing, formatting, stuff
 
-(library (weinholt net ssh private (1 0 20101201))
+(library (weinholt net ssh private (1 0 20110201))
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data
@@ -31,6 +31,8 @@
           (srfi :26 cut)
           (weinholt bytevectors)
           (weinholt crypto dsa)
+          (weinholt crypto ec)
+          (weinholt crypto ec dsa)
           (weinholt crypto rsa (1 (>= 1)))
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
@@ -60,6 +62,13 @@
                       (r (subbytevector bv 0 160/8))
                       (s (subbytevector bv 160/8 (* 160/8 2))))
                  (list 'dsa (bytevector->uint r)
+                       (bytevector->uint s))))
+              ((string=? type "ecdsa-sha2-nistp256")
+               (let* ((blob (open-bytevector-input-port (get p)))
+                      (r (get blob))
+                      (s (get blob)))
+                 (list 'ecdsa-sha2-nistp256
+                       (bytevector->uint r)
                        (bytevector->uint s))))
               (else
                (error 'parse-signature "Unimplemented signature algorithm"
@@ -101,6 +110,14 @@
              (if (dsa-verify-signature (sha-1->bytevector H-digest)
                                        key (cadr signature)
                                        (caddr signature))
+                 'ok 'bad))
+            ((and (string=? keyalg "ecdsa-sha2-nistp256")
+                  (ecdsa-sha-2-public-key? key)
+                  (elliptic-curve=? (ecdsa-public-key-curve key) nistp256)
+                  (eq? (car signature) 'ecdsa-sha2-nistp256))
+             (if (ecdsa-sha-2-verify-signature H
+                                               key (cadr signature)
+                                               (caddr signature))
                  'ok 'bad))
             (else
              (error 'verify-signature

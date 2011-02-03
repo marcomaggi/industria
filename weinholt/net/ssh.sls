@@ -28,13 +28,15 @@
 
 ;; TODO: fast path for channel-data
 
-(library (weinholt net ssh (1 0 20110201))
+(library (weinholt net ssh (1 0 20110202))
   (export
     make-ssh-client make-ssh-server
     ssh-conn-peer-identification
     ssh-conn-peer-kexinit
     ssh-conn-host-key
     ssh-conn-session-id
+    ssh-key-re-exchange                 ;XXXX???
+    build-kexinit-packet key-exchange-packet? process-key-exchange-packet ;;;;;
     ssh-finish-key-exchange
     ssh-conn-registrar
     ssh-error
@@ -141,7 +143,7 @@
             (mutable local-identification)
             (mutable peer-kexinit)
             (mutable host-key)
-            (mutable private-key)
+            (mutable private-keys)
             (mutable algorithms)
             ;; Used for generating key material:
             (mutable kexer)
@@ -173,7 +175,7 @@
               #vu8() #vu8()
               'no-peer-kex-init-yet
               'no-public-key-yet
-              'no-private-key
+              '()                       ;private keys
               (list (cons 'kex (guessed-kex-algorithm)))
               #f
               'no-session-id-yet
@@ -407,20 +409,42 @@
     ;; bool in put-kexinit is true.
     (car (preferred-kex-algorithms)))
 
-  (define (build-kexinit-packet first-kex-packet-follows?)
-    (make-kexinit (make-random-bytevector 16)
-                  (preferred-kex-algorithms)
-                  (preferred-server-host-key-algorithms)
-                  (preferred-encryption-algorithms-client->server)
-                  (preferred-encryption-algorithms-server->client)
-                  (preferred-mac-algorithms-client->server)
-                  (preferred-mac-algorithms-server->client)
-                  (preferred-compression-algorithms-client->server)
-                  (preferred-compression-algorithms-server->client)
-                  (preferred-languages-client->server)
-                  (preferred-languages-server->client)
-                  ;; true if a guessed kex init packet is sent
-                  first-kex-packet-follows? 0))
+  (define (first-key-exchange? conn)
+    (not (bytevector? (ssh-conn-session-id conn))))
+
+  ;; Construct the local kexinit packet
+  (define (build-kexinit-packet conn)
+    (define (supported? algo)
+      (or (ssh-conn-client? conn)
+          (cond #;((string=? algo "ssh-rsa")
+                   (exists rsa-private-key? keys))
+                ((string=? algo "ssh-dss")
+                 (exists dsa-private-key?
+                         (ssh-conn-private-keys conn)))
+                (else #f))))
+    (parameterize ((preferred-server-host-key-algorithms
+                    (filter supported?
+                            (preferred-server-host-key-algorithms))))
+      (unless (list? (preferred-server-host-key-algorithms))
+        (ssh-error conn 'make-ssh-server
+                   "No usable host key algorithms"
+                   SSH-DISCONNECT-KEY-EXCHANGE-FAILED))
+      (let ((first-kex-packet-follows?
+             (and (ssh-conn-client? conn)
+                  (first-key-exchange? conn))))
+        (make-kexinit (make-random-bytevector 16)
+                      (preferred-kex-algorithms)
+                      (preferred-server-host-key-algorithms)
+                      (preferred-encryption-algorithms-client->server)
+                      (preferred-encryption-algorithms-server->client)
+                      (preferred-mac-algorithms-client->server)
+                      (preferred-mac-algorithms-server->client)
+                      (preferred-compression-algorithms-client->server)
+                      (preferred-compression-algorithms-server->client)
+                      (preferred-languages-client->server)
+                      (preferred-languages-server->client)
+                      ;; true if a guessed kex init packet is sent
+                      first-kex-packet-follows? 0))))
 
   (define (kexinit->bytevector m)
     (call-with-bytevector-output-port (cut put-kexinit <> m)))
@@ -463,6 +487,7 @@
     (trace "Host key fingerprint: "
            (ssh-public-key-fingerprint (ssh-conn-host-key conn)))
     (unless (bytevector? (ssh-conn-session-id conn))
+      (trace "Session ID: " H)
       (ssh-conn-session-id-set! conn (bytevector-copy H)))
     (ssh-conn-next-reader-set! conn (make-reader (alg 'enc-sc 'enc-cs)
                                                  (keygen #\A #\B)
@@ -477,17 +502,137 @@
     (bytevector-fill! K 0))
 
   (define (switch-write-keys! conn)
+    (trace "Switching write keys.")
     (ssh-conn-writer-set! conn (ssh-conn-next-writer conn))
     (ssh-conn-write-mac-set! conn (ssh-conn-next-write-mac conn))
     (ssh-conn-next-writer-set! conn #f)
     (ssh-conn-next-write-mac-set! conn #f))
 
   (define (switch-read-keys! conn)
+    (trace "Switching read keys.")
     (ssh-conn-reader-set! conn (ssh-conn-next-reader conn))
     (ssh-conn-read-mac-set! conn (ssh-conn-next-read-mac conn))
     (ssh-conn-next-reader-set! conn #f)
     (ssh-conn-next-read-mac-set! conn #f))
 
+  ;; This registers and starts a key exchange algorithm.
+  (define (start-kex conn kex)
+    (trace "Starting key exchange algorithm " kex)
+    (register-key-exchange kex (ssh-conn-registrar conn))
+    (unless (ssh-conn-kexer conn)
+      (ssh-conn-kexer-set! conn
+                           (make-key-exchanger kex
+                                               (ssh-conn-client? conn)
+                                               (cut put-ssh conn <>))))
+    ((ssh-conn-kexer conn) 'start #f))
+
+  (define (ssh-key-re-exchange conn peer-kex local-kex)
+    (let* ((client? (ssh-conn-client? conn))
+           (algorithms (if client?
+                           (find-algorithms local-kex peer-kex)
+                           (find-algorithms peer-kex local-kex))))
+      (ssh-conn-peer-kexinit-set! conn peer-kex)
+      (trace "#;algorithms: " algorithms)
+      (for-each (lambda (alg)
+                  (unless (or (memq (car alg) '(lang-cs lang-sc))
+                              (cdr alg))
+                    (ssh-error conn 'start-ssh
+                               "No common algorithms"
+                               SSH-DISCONNECT-KEY-EXCHANGE-FAILED
+                               algorithms)))
+                algorithms)
+      (ssh-conn-algorithms-set! conn algorithms)
+      (when (and (kexinit-first-kex-packet-follows? peer-kex)
+                 (bad-guess? local-kex peer-kex))
+        ;; Ignore the next packet, because the peer guessed the wrong
+        ;; kex algorithm. XXX: should be done in the kexer, because it
+        ;; is the next kex packet that should be ignored
+        (trace "Ignoring next packet because of wrong algorithm guess.")
+        (get-packet conn))
+      (when (or (not (kexinit-first-kex-packet-follows? local-kex))
+                (and (kexinit-first-kex-packet-follows? local-kex)
+                     (bad-guess? local-kex peer-kex)))
+        ;; Servers start KEX here. Clients start KEX again if the
+        ;; server guessed wrong.
+        (start-kex conn (ssh-conn-algorithm conn 'kex)))
+      (trace "Initializing key exchanger: " (ssh-conn-kexer conn))
+      ((ssh-conn-kexer conn) 'init (list 'host-key-algorithm
+                                         (ssh-conn-algorithm conn 'keyalg)
+                                         ;; 'swallow-next-packet
+                                         ;; (and (kexinit-first-kex-packet-follows? peer-kex)
+                                         ;;      (bad-guess? local-kex peer-kex))
+                                         (if client? 'V_C 'V_S)
+                                         (ssh-conn-local-identification conn)
+                                         (if client? 'V_S 'V_C)
+                                         (ssh-conn-peer-identification conn)
+                                         (if client? 'I_C 'I_S)
+                                         (kexinit->bytevector local-kex)
+                                         (if client? 'I_S 'I_C)
+                                         (kexinit->bytevector peer-kex)))
+      ;; If this is a server, then the we need to select a host key
+      ;; based on the negotiated algorithms.
+      (unless client?
+        (let ((keyalg (ssh-conn-algorithm conn 'keyalg)))
+          (cond ((find (lambda (key)
+                         (string=? keyalg (ssh-public-key-algorithm
+                                           (private->public key))))
+                       (ssh-conn-private-keys conn))
+                 => (lambda (key) ((ssh-conn-kexer conn) 'private-key key)))
+                (else
+                 (ssh-error conn 'ssh-key-re-exchange
+                            "No supported host key found"
+                            SSH-DISCONNECT-KEY-EXCHANGE-FAILED
+                            keyalg)))))))
+
+  (define (key-exchange-packet? pkt)
+    (or (equal? (type-category (ssh-packet-type pkt))
+                '(transport-layer key-exchange))
+        (kexinit? pkt)
+        (newkeys? pkt)))
+
+  (define (process-key-exchange-packet conn pkt)
+    (cond ((and (kexinit? pkt)
+                (ssh-conn-server? conn))
+           (trace "Starting key re-exchange")
+           ;; TODO: it would be nice if clients could also use this
+           ;; code. Would need to keep the kexinit the client sent
+           (let ((peer-kex pkt)
+                 (local-kex (build-kexinit-packet conn)))
+             (put-ssh conn local-kex)
+             (ssh-key-re-exchange conn peer-kex local-kex)))
+          ((newkeys? pkt)
+           ;; The next packet from the peer will use the new keys.
+           (switch-read-keys! conn))
+          ((ssh-conn-kexer conn) =>
+           (lambda (kexer)
+             ;; FIXME: let the kexer signal errors properly so that
+             ;; ssh-error can be called from here
+             (cond ((kexer 'packet pkt) =>
+                    ;; FIXME: should deregister all KEX packet types now
+                    (lambda (success)
+                      (ssh-conn-kexer-set! conn #f)
+                      (apply generate-key-material! conn success)
+                      ;; Tell the peer that the next packet will use the new keys.
+                      (put-ssh conn (make-newkeys))
+                      (switch-write-keys! conn)
+                      'finished))
+                   (else #f))))
+          (else
+           (ssh-error conn 'ssh-process-kex-packet
+                      "Unexpected key exchange packet received"
+                      SSH-DISCONNECT-KEY-EXCHANGE-FAILED))))
+
+  ;; Run the initial key exchange
+  (define (run-kex conn)
+    ;; FIXME: let the KEX signal errors properly so that ssh-error can
+    ;; be called from here
+    (trace "Initial key exchange running...")
+    (let lp ()
+      (unless (eq? (process-key-exchange-packet conn (get-ssh conn))
+                   'finished)
+        (lp)))
+    (trace "Initial key exchange finished."))
+  
 ;;; Starting connections
 
   (define (bad-guess? local-kex peer-kex)
@@ -497,22 +642,14 @@
                       (car (kexinit-server-host-key-algorithms peer-kex))))))
 
   (define (start-ssh conn)
-    (define (start-kex kex)
-      (register-key-exchange kex (ssh-conn-registrar conn))
-      (unless (ssh-conn-kexer conn)
-        (ssh-conn-kexer-set! conn
-                             (make-key-exchanger kex
-                                                 (ssh-conn-client? conn)
-                                                 (cut put-ssh conn <>))))
-      ((ssh-conn-kexer conn) 'start #f))
     (register-transport (ssh-conn-registrar conn))
     (put-version-exchange conn)
     ;; Tell the peer what algorithms are supported
-    (let* ((client? (ssh-conn-client? conn))
-           (local-kex (build-kexinit-packet client?)))
+    (let ((client? (ssh-conn-client? conn))
+          (local-kex (build-kexinit-packet conn)))
       (put-ssh conn local-kex)
       ;; Clients speculatively start the key exchange
-      (when client? (start-kex (guessed-kex-algorithm)))
+      (when client? (start-kex conn (guessed-kex-algorithm)))
       (let ((id (get-version-exchange conn)))
         (when (eof-object? id)
           (ssh-error conn 'start-ssh "No identification string received"
@@ -524,87 +661,26 @@
           (ssh-error conn 'start-ssh "Unsupported protocol version"
                      SSH-DISCONNECT-PROTOCOL-VERSION-NOT-SUPPORTED
                      version server-version comment)))
-      ;; Get the peer's list of algorithms (and cookie)
-      (let* ((peer-kex (get-ssh conn))
-             (algorithms (if (ssh-conn-client? conn)
-                             (find-algorithms local-kex peer-kex)
-                             (find-algorithms peer-kex local-kex))))
-        (ssh-conn-peer-kexinit-set! conn peer-kex)
-        (trace "#;algorithms: " algorithms)
-        (for-each (lambda (alg)
-                    (unless (or (memq (car alg) '(lang-cs lang-sc))
-                                (cdr alg))
-                      (ssh-error conn 'start-ssh
-                                 "No common algorithms"
-                                 SSH-DISCONNECT-KEY-EXCHANGE-FAILED
-                                 algorithms)))
-                  algorithms)
-        (ssh-conn-algorithms-set! conn algorithms)
-        (when (and (kexinit-first-kex-packet-follows? peer-kex)
-                   (bad-guess? local-kex peer-kex))
-          ;; Ignore the next packet, because the peer guessed the
-          ;; wrong kex algorithm.
-          (trace "Ignoring next packet because of wrong algorithm guess.")
-          (get-packet conn))
-        (when (or (not client?) (bad-guess? local-kex peer-kex))
-          ;; Server start KEX here. Clients start KEX again if the
-          ;; server guessed wrong.
-          (start-kex (ssh-conn-algorithm conn 'kex)))
-        ((ssh-conn-kexer conn) 'init (list 'host-key-algorithm
-                                           (ssh-conn-algorithm conn 'keyalg)
-                                           (if client? 'V_C 'V_S)
-                                           (ssh-conn-local-identification conn)
-                                           (if client? 'V_S 'V_C)
-                                           (ssh-conn-peer-identification conn)
-                                           (if client? 'I_C 'I_S)
-                                           (kexinit->bytevector local-kex)
-                                           (if client? 'I_S 'I_C)
-                                           (kexinit->bytevector peer-kex))))))
-
-  ;; Run the initial key exchange
-  (define (run-kex conn)
-    ;; FIXME: let the KEX signal errors properly so that ssh-error can
-    ;; be called from here
-    (trace "Key exchange running...")
-    (cond (((ssh-conn-kexer conn) 'packet (get-ssh conn))
-           ;; FIXME: should deregister all KEX packets types now
-           => (lambda (success)
-                (trace "Key exchange finished.")
-                (apply generate-key-material! conn success)))
-          (else (run-kex conn))))
+      ;; At this point we have the ID strings and clients have tried
+      ;; to start KEX. Now the kexer can receive its initial state:
+      (ssh-key-re-exchange conn (get-ssh conn) local-kex)))
 
   ;; Start up an SSH client on the given ports. The host key will be
   ;; known (and its signature verified) when this procedure returns.
   (define (make-ssh-client inport outport)
     (let ((conn (make-ssh-conn 'client inport outport)))
       (start-ssh conn)
-      (run-kex conn)
       conn))
 
   (define (make-ssh-server inport outport keys)
-    (define (supported? algo)
-      (cond #;((string=? algo "ssh-rsa")
-             (exists rsa-private-key? keys))
-            ((string=? algo "ssh-dss")
-             (exists dsa-private-key? keys))
-            (else #f)))
-    (parameterize ((preferred-server-host-key-algorithms
-                    (filter supported?
-                            (preferred-server-host-key-algorithms))))
-      (unless (list? (preferred-server-host-key-algorithms))
-        (error 'make-ssh-server "No usable host keys" inport outport))
-      (let ((conn (make-ssh-conn #f inport outport)))
-        (start-ssh conn)
-        ;; FIXME: select a key based on the negotiated algorithms.
-        (ssh-conn-private-key-set! conn (car keys))
-        ((ssh-conn-kexer conn) 'private-key (ssh-conn-private-key conn))
-        (run-kex conn)
-        conn)))
+    (let ((conn (make-ssh-conn #f inport outport)))
+      (ssh-conn-private-keys-set! conn keys)
+      (start-ssh conn)
+      conn))
 
+  ;; This runs the initial key exchange
   (define (ssh-finish-key-exchange conn)
-    ;; Tell the peer that the next packet will use the new keys.
-    (put-ssh conn (make-newkeys))
-    (switch-write-keys! conn)
+    (run-kex conn)
     (let ((msg (get-ssh conn)))
       (unless (newkeys? msg)
         (ssh-error conn 'ssh-finish-key-exchange

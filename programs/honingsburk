@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; Example SecSH server
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -171,11 +171,9 @@
                (lp))
               ((eof-object? x)
                (display "disconnected!\n"))
-              ((kexinit? x)
-               #f
-               ;; TODO: key re-exchange
-               ;;(put-ssh conn (build-kexinit-packet #f))
-               #;(lp))
+              ((key-exchange-packet? x)
+               (process-key-exchange-packet conn x)
+               (lp))
               ((channel-request/shell? x)
                (when (channel-request-want-reply? x)
                  (put-ssh conn (make-channel-success ID)))
