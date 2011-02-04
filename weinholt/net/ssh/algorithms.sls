@@ -39,7 +39,7 @@
 ;; This describes the MAC algorithm umac-64@openssh.com:
 ;; RFC4418 UMAC: Message Authentication Code using Universal Hashing
 
-(library (weinholt net ssh algorithms (1 0 20110201))
+(library (weinholt net ssh algorithms (1 0 20110204))
   (export make-reader make-writer
           make-read-mac make-write-mac
           make-key-exchanger register-key-exchange
@@ -79,7 +79,8 @@
     (make-parameter kexes (algfilter kexes)))
 
   (define keyalgs
-    '("ecdsa-sha2-nistp256" "ssh-rsa" "ssh-dss"))
+    '("ecdsa-sha2-nistp256" "ecdsa-sha2-nistp384" "ecdsa-sha2-nistp521"
+      "ssh-rsa" "ssh-dss"))
 
   (define preferred-server-host-key-algorithms
     (make-parameter keyalgs (algfilter keyalgs)))

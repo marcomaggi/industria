@@ -42,6 +42,8 @@
   (list '(weinholt crypto aes private)
         '(weinholt disassembler private)
         '(weinholt net ssh algorithms)
+        '(weinholt net ssh kex-dh-gex)
+        '(weinholt net ssh kexdh)
         '(weinholt net ssh private)
         '(weinholt struct pack-aux)))
 

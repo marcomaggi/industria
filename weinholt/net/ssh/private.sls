@@ -28,7 +28,7 @@
           put-record put-bvstring put-name-list put-mpint
           integer->mpint)
   (import (rnrs)
-          (only (srfi :13 strings) string-join)
+          (only (srfi :13 strings) string-join string-prefix?)
           (srfi :26 cut)
           (weinholt bytevectors)
           (weinholt crypto dsa)
@@ -37,6 +37,7 @@
           (weinholt crypto rsa (1 (>= 1)))
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
+          (weinholt crypto ssh-public-key)
           (weinholt net buffer)
           (weinholt struct pack)
           (weinholt text strings))
@@ -54,10 +55,12 @@
                   key))))
 
   (define (algorithm-can-sign? algorithm)
-    (member algorithm '(#;"ssh-rsa" "ssh-dss" #;"ecdsa-sha2-nistp256")))
+    (member algorithm '("ecdsa-sha2-nistp256" "ecdsa-sha2-nistp384"
+                        "ecdsa-sha2-nistp521" #;"ssh-rsa" "ssh-dss")))
 
   (define (algorithm-can-verify? algorithm)
-    (member algorithm '("ssh-rsa" "ssh-dss" "ecdsa-sha2-nistp256")))
+    (member algorithm '("ecdsa-sha2-nistp256" "ecdsa-sha2-nistp384"
+                        "ecdsa-sha2-nistp521" "ssh-rsa" "ssh-dss")))
 
   (define (parse-signature sig)
     (define (get p)
@@ -65,20 +68,18 @@
     (let ((p (open-bytevector-input-port sig)))
       (let ((type (utf8->string (get p))))
         (cond ((string=? type "ssh-rsa")
-               (list 'rsa (bytevector->uint (get p))))
+               (list type (bytevector->uint (get p))))
               ((string=? type "ssh-dss")
                (let* ((bv (get p))
                       (r (subbytevector bv 0 160/8))
                       (s (subbytevector bv 160/8 (* 160/8 2))))
-                 (list 'dsa (bytevector->uint r)
+                 (list type (bytevector->uint r)
                        (bytevector->uint s))))
-              ((string=? type "ecdsa-sha2-nistp256")
+              ((string-prefix? "ecdsa-sha2-" type)
                (let* ((blob (open-bytevector-input-port (get p)))
-                      (r (get blob))
-                      (s (get blob)))
-                 (list 'ecdsa-sha2-nistp256
-                       (bytevector->uint r)
-                       (bytevector->uint s))))
+                      (r (bytevector->uint (get blob)))
+                      (s (bytevector->uint (get blob))))
+                 (list type r s)))
               (else
                (error 'parse-signature "Unimplemented signature algorithm"
                       type))))))
@@ -98,6 +99,15 @@
                    (put-bvstring p "ssh-dss")
                    (put-bytevector p (pack "!L" (bytevector-length sig)))
                    (put-bytevector p sig))))
+              ((ecdsa-sha-2-private-key? key)
+               (let-values (((r s) (ecdsa-sha-2-create-signature msg key))
+                            ((blob extract) (open-bytevector-output-port)))
+                 (put-mpint blob r)
+                 (put-mpint blob s)
+                 (put-bvstring p (ssh-public-key-algorithm (private->public key)))
+                 (let ((sig (extract)))
+                   (put-bytevector p (pack "!L" (bytevector-length sig)))
+                   (put-bytevector p sig))))
               (else
                (error 'make-signature
                       "Unimplemented public key algorithm"
@@ -106,32 +116,28 @@
   (define (verify-signature H keyalg key sig-bv)
     (let ((H-digest (sha-1 H))
           (signature (parse-signature sig-bv)))
-      (cond ((and (string=? keyalg "ssh-rsa")
-                  (rsa-public-key? key)
-                  (eq? (car signature) 'rsa))
-             (let ((sig (cadr (rsa-pkcs1-decrypt-digest
-                               (cadr signature) key))))
-               (if (sha-1-hash=? H-digest sig)
-                   'ok 'bad)))
-            ((and (string=? keyalg "ssh-dss")
-                  (dsa-public-key? key)
-                  (eq? (car signature) 'dsa))
-             (if (dsa-verify-signature (sha-1->bytevector H-digest)
-                                       key (cadr signature)
-                                       (caddr signature))
-                 'ok 'bad))
-            ((and (string=? keyalg "ecdsa-sha2-nistp256")
-                  (ecdsa-sha-2-public-key? key)
-                  (elliptic-curve=? (ecdsa-public-key-curve key) nistp256)
-                  (eq? (car signature) 'ecdsa-sha2-nistp256))
-             (if (ecdsa-sha-2-verify-signature H
-                                               key (cadr signature)
-                                               (caddr signature))
-                 'ok 'bad))
-            (else
-             (error 'verify-signature
-                    "Unimplemented public key algorithm or bad signature"
-                    keyalg key signature)))))
+      (if (not (string=? keyalg (ssh-public-key-algorithm key)
+                         (car signature)))
+          (error 'verify-signature "The algorithms do not match"
+                 keyalg key signature)
+          (cond ((rsa-public-key? key)
+                 (let ((sig (cadr (rsa-pkcs1-decrypt-digest
+                                   (cadr signature) key))))
+                   (if (sha-1-hash=? H-digest sig)
+                       'ok 'bad)))
+                ((dsa-public-key? key)
+                 (if (dsa-verify-signature (sha-1->bytevector H-digest)
+                                           key (cadr signature)
+                                           (caddr signature))
+                     'ok 'bad))
+                ((ecdsa-sha-2-public-key? key)
+                 (if (ecdsa-sha-2-verify-signature H key (cadr signature)
+                                                   (caddr signature))
+                     'ok 'bad))
+                (else
+                 (error 'verify-signature
+                        "Unimplemented public key algorithm"
+                        keyalg key signature))))))
 
   ;; Used by kexdh and kex-dh-gex. The server signs this digest to
   ;; prove it owns the key it sent.
