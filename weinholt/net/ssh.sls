@@ -28,15 +28,15 @@
 
 ;; TODO: fast path for channel-data
 
-(library (weinholt net ssh (1 0 20110202))
+(library (weinholt net ssh (1 0 20110204))
   (export
     make-ssh-client make-ssh-server
     ssh-conn-peer-identification
     ssh-conn-peer-kexinit
     ssh-conn-host-key
     ssh-conn-session-id
-    ssh-key-re-exchange                 ;XXXX???
-    build-kexinit-packet key-exchange-packet? process-key-exchange-packet ;;;;;
+    ssh-key-re-exchange                 ;XXX: good api?
+    build-kexinit-packet key-exchange-packet? process-key-exchange-packet
     ssh-finish-key-exchange
     ssh-conn-registrar
     ssh-error
@@ -68,9 +68,7 @@
           (srfi :26 cut)
           (srfi :39 parameters)
           (weinholt bytevectors)
-          (weinholt crypto dsa)
           (weinholt crypto entropy)
-          (weinholt crypto rsa)
           (weinholt crypto ssh-public-key)
           (weinholt net buffer)
           (weinholt net ssh algorithms (1))
@@ -415,13 +413,15 @@
   ;; Construct the local kexinit packet
   (define (build-kexinit-packet conn)
     (define (supported? algo)
-      (or (ssh-conn-client? conn)
-          (cond #;((string=? algo "ssh-rsa")
-                   (exists rsa-private-key? keys))
-                ((string=? algo "ssh-dss")
-                 (exists dsa-private-key?
-                         (ssh-conn-private-keys conn)))
-                (else #f))))
+      ;; Advertise the host key algorithm if there is a compatible key
+      ;; and the appropriate primitives have been implemented.
+      (if (ssh-conn-client? conn)
+          (algorithm-can-verify? algo)
+          (and (algorithm-can-sign? algo)
+               (member algo
+                       (map ssh-public-key-algorithm
+                            (map private->public
+                                 (ssh-conn-private-keys conn)))))))
     (parameterize ((preferred-server-host-key-algorithms
                     (filter supported?
                             (preferred-server-host-key-algorithms))))

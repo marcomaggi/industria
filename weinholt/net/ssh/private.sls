@@ -15,12 +15,13 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #!r6rs
 
-;; Private parsing, formatting, stuff
+;; Private parsing, formatting, public key algorithms, stuff
 
-(library (weinholt net ssh private (1 0 20110201))
+(library (weinholt net ssh private (1 0 20110204))
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data
+          algorithm-can-sign? algorithm-can-verify?
           private->public prf-sha-1 prf-sha-256
           get-record read-byte read-uint32
           read-bytevector read-string read-name-list read-mpint
@@ -45,10 +46,18 @@
            (rsa-private->public key))
           ((dsa-private-key? key)
            (dsa-private->public key))
+          ((ecdsa-private-key? key)
+           (ecdsa-private->public key))
           (else
            (error 'private->public
                   "Unimplemented public key algorithm"
                   key))))
+
+  (define (algorithm-can-sign? algorithm)
+    (member algorithm '(#;"ssh-rsa" "ssh-dss" #;"ecdsa-sha2-nistp256")))
+
+  (define (algorithm-can-verify? algorithm)
+    (member algorithm '("ssh-rsa" "ssh-dss" "ecdsa-sha2-nistp256")))
 
   (define (parse-signature sig)
     (define (get p)

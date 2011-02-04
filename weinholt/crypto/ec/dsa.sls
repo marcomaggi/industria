@@ -17,13 +17,13 @@
 
 ;; Elliptic Curve Digital Signature Algorithm
 
-(library (weinholt crypto ec dsa (1 0 20110203))
+(library (weinholt crypto ec dsa (1 0 20110204))
   (export make-ecdsa-public-key ecdsa-public-key?
           ecdsa-public-key-curve
           ecdsa-public-key-Q
           ecdsa-public-key-length
 
-          make-ecdsa-private-key
+          make-ecdsa-private-key ecdsa-private-key?
           ecdsa-private-key-d
           ecdsa-private-key-Q
 
