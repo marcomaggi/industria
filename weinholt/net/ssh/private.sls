@@ -114,8 +114,7 @@
                       key))))))
 
   (define (verify-signature H keyalg key sig-bv)
-    (let ((H-digest (sha-1 H))
-          (signature (parse-signature sig-bv)))
+    (let ((signature (parse-signature sig-bv)))
       (if (not (string=? keyalg (ssh-public-key-algorithm key)
                          (car signature)))
           (error 'verify-signature "The algorithms do not match"
@@ -123,10 +122,10 @@
           (cond ((rsa-public-key? key)
                  (let ((sig (cadr (rsa-pkcs1-decrypt-digest
                                    (cadr signature) key))))
-                   (if (sha-1-hash=? H-digest sig)
+                   (if (sha-1-hash=? (sha-1 H) sig)
                        'ok 'bad)))
                 ((dsa-public-key? key)
-                 (if (dsa-verify-signature (sha-1->bytevector H-digest)
+                 (if (dsa-verify-signature (sha-1->bytevector (sha-1 H))
                                            key (cadr signature)
                                            (caddr signature))
                      'ok 'bad))
