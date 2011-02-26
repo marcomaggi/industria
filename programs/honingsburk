@@ -25,14 +25,17 @@
         (srfi :19 time)
         (weinholt bytevectors)
         (weinholt crypto dsa)
+        (weinholt crypto ec dsa)
         (weinholt crypto ssh-public-key)
         (weinholt crypto password)
+        (weinholt crypto rsa)
         (weinholt net ssh)
         (weinholt net ssh connection)
         (weinholt net ssh transport)
         (weinholt net ssh userauth)
         (weinholt struct pack)
         (weinholt text strings)
+        (weinholt text base64)
         (only (ikarus) tcp-server-socket fork
               accept-connection waitpid))
 
@@ -239,12 +242,10 @@
       (display pid p)
       (display ".txt" p))))
 
-(define (main socket key)
+(define (main socket . keys)
   ;; (identification-software-version "OpenSSH_5.1p1")
   ;; (identification-comments "Debian-5")
   (ssh-debugging #b111) 
-  (print "Host key fingerprint: " (ssh-public-key-fingerprint
-                                   (dsa-private->public key)))
   (print "Waiting for connections...")
   (let lp ((pid 0))
     (waitpid -1 #f #f)                  ;kill old zombies
@@ -259,15 +260,28 @@
               (with-output-to-file logname
                 (lambda ()
                   (print "Server on " i " and " o)
-                  (server (make-ssh-server i o (list key))))))))))
+                  (server (make-ssh-server i o keys)))))))))
+
+(define (get-private-key filename)
+  (call-with-port (open-input-file filename)
+    (lambda (p)
+      (let-values (((type data) (get-delimited-base64 p)))
+        (cond ((string=? type "DSA PRIVATE KEY")
+               (dsa-private-key-from-bytevector data))
+              ((string=? type "RSA PRIVATE KEY")
+               (rsa-private-key-from-bytevector data))
+              ((string=? type "EC PRIVATE KEY")
+               (ecdsa-sha-2-private-key-from-bytevector data))
+              (else
+               (error 'get-private-key "Unsupported key type" type filename)))))))
 
 (apply
  (case-lambda
-   ((who keyfile port)
-    (main (tcp-server-socket (string->number port))
-          (dsa-private-key-from-pem-file keyfile)))
-   ((who)
-    (print "Usage: " who " <dsa-key-file.pem> <TCP-port-number>")
+   ((who port key1 . keys)
+    (apply main (tcp-server-socket (string->number port))
+           (map get-private-key (cons key1 keys))))
+   ((who . _)
+    (print "Usage: " who " port hostkey.pem")
     (print "Hint: generate the key with one of these commands:")
     (print "openssl dsaparam 1024 | openssl gendsa /dev/stdin > demo.pem")
     (print "certtool --dsa --bits 1024 -p > demo.pem")
