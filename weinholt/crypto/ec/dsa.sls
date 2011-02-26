@@ -17,7 +17,7 @@
 
 ;; Elliptic Curve Digital Signature Algorithm
 
-(library (weinholt crypto ec dsa (1 0 20110204))
+(library (weinholt crypto ec dsa (1 0 20110226))
   (export make-ecdsa-public-key ecdsa-public-key?
           ecdsa-public-key-curve
           ecdsa-public-key-Q
@@ -29,19 +29,24 @@
 
           ecdsa-private->public
 
+          ecdsa-private-key-from-bytevector
+
           ecdsa-verify-signature
           ecdsa-create-signature
           
           make-ecdsa-sha-2-public-key ecdsa-sha-2-public-key?
           make-ecdsa-sha-2-private-key ecdsa-sha-2-private-key?
           ecdsa-sha-2-verify-signature
-          ecdsa-sha-2-create-signature)
+          ecdsa-sha-2-create-signature
+          ecdsa-sha-2-private-key-from-bytevector)
   (import (rnrs)
           (weinholt bytevectors)
           (weinholt crypto ec)
           (weinholt crypto entropy)
           (weinholt crypto math)
-          (weinholt crypto sha-2))
+          (weinholt crypto sha-2)
+          (prefix (weinholt struct der (0 0)) der:)
+          (weinholt text base64))
 
   (define-record-type ecdsa-public-key
     (fields curve Q)
@@ -76,6 +81,45 @@
 
   (define (ecdsa-public-key-length key)
     (bitwise-length (elliptic-curve-n (ecdsa-public-key-curve key))))
+
+  (define (ECPrivateKey)
+    `(sequence (version (integer ((ecPrivKeyver1 . 1))))
+               (privateKey octet-string)
+               (parameters (explicit context 0 object-identifier) (default #f))
+               (publicKey (explicit context 1 bit-string) (default #f))))
+
+  (define (find-curve oid)
+    ;; The list of OIDs is from RFC 5656
+    (cond ((assoc oid `(((1 2 840 10045 3 1 7) . ,secp256r1)
+                        ((1 3 132 0 34) . ,secp384r1)
+                        ((1 3 132 0 35) . ,secp521r1)
+                        ;; ((1 3 132 0 1) . ,sect163k1)
+                        ;; ((1 2 840 10045 3 1 1) . ,secp192r1)
+                        ;; ((1 3 132 0 33) . ,secp224r1)
+                        ;; ((1 3 132 0 26) . ,sect233k1)
+                        ;; ((1 3 132 0 27) . ,sect233r1)
+                        ;; ((1 3 132 0 16) . ,sect283k1)
+                        ;; ((1 3 132 0 36) . ,sect409k1)
+                        ;; ((1 3 132 0 37) . ,sect409r1)
+                        ;; ((1 3 132 0 38) . ,sect571k1)
+                        ))
+           => cdr)
+          (else
+           (error 'ecdsa-private-key-from-bytevector
+                  "Unimplemented elliptic curve" oid))))
+  
+  (define (ecdsa-private-key-from-bytevector bv)
+    ;; This is from RFC 5915, which is probably more general than
+    ;; ECDSA. Should probably be called
+    ;; ec-private-key-from-bytevector, and there'd be ec-private-key
+    ;; and ec-public-key.
+    (let-values (((ver private curve public . _)
+                  (apply values (der:translate (der:decode bv) (ECPrivateKey)))))
+      (unless (eq? ver 'ecPrivKeyver1)
+        (error 'ecdsa-private-key-from-bytevector "Unknown version" ver))
+      (make-ecdsa-private-key (find-curve curve)
+                              (bytevector->uint private)
+                              (der:bit-string->integer public))))
 
   (define (make-random n)
     ;; Generate a random number less than q
@@ -159,4 +203,11 @@
     (ecdsa-verify-signature (sha-2* message key) key r s))
 
   (define (ecdsa-sha-2-create-signature message privkey)
-    (ecdsa-create-signature (sha-2* message (ecdsa-private->public privkey)) privkey)))
+    (ecdsa-create-signature (sha-2* message (ecdsa-private->public privkey)) privkey))
+
+  (define (ecdsa-sha-2-private-key-from-bytevector bv)
+    (let ((key (ecdsa-private-key-from-bytevector bv)))
+      (make-ecdsa-sha-2-private-key (ecdsa-private-key-curve key)
+                                    (ecdsa-private-key-d key)
+                                    (ecdsa-private-key-Q key)))))
+
