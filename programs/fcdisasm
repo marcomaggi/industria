@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; fcdisasm - The Full-Color Disassembler
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -22,7 +22,8 @@
 ;; hex dump!
 
 (import (rnrs)
-        (weinholt binfmt elf (0 (>= 0)))
+        (only (srfi :1 lists) list-index)
+        (weinholt binfmt elf (1 (>= 0)))
         #;(prefix (weinholt disassembler arm (1 (>= 0))) arm:)
         (prefix (weinholt disassembler i8080 (1 (>= 0))) i8080:)
         (prefix (weinholt disassembler m68hc12 (1 (>= 0))) m68hc12:)
@@ -56,8 +57,23 @@
         (else
          (display i))))
 
-(define (disassemble p get-instruction color end-position)
-  (let lp ((pos (port-position p)))
+(define (disassemble p get-instruction color end-position pc symbols)
+  (define (display-addr addr)
+    (let ((x (number->string addr 16)))
+      (if (< (string-length x) 8)
+          (display (make-string (- 8 (string-length x)) #\space)))
+      (display x)))
+  (define (next-symbol symbols pc)
+    (cond ((null? symbols) symbols)
+          ((null? (cdr symbols)) symbols)
+          ((or (> pc (cadar symbols))
+               (= pc (caadr symbols)))
+           (next-symbol (cdr symbols) pc))
+          
+          (else symbols)))
+  (let lp ((pos (port-position p))
+           (pc pc)
+           (symbols (next-symbol symbols pc)))
     (let* ((tagged-bytes '())
            (i (guard (con
                       ((invalid-opcode? con)
@@ -67,12 +83,23 @@
                                  (lambda x
                                    (set! tagged-bytes (cons x tagged-bytes))))))
            (new-pos (port-position p)))
+      ;; Print info from the symbol table
+      (unless (null? symbols)
+        (when (= pc (caar symbols))
+          (let ((sym (car symbols)))
+            (newline)
+            (when color (display "\x1b;[4m"))
+            (display (number->string (car sym) 16))
+            (display #\-)
+            (display (number->string (cadr sym) 16))
+            (when color (display "\x1b;[0m"))
+            (display #\space)
+            (display (caddr sym))
+            (newline))))
+      ;; Print instructions
       (unless (or (eof-object? i)
                   (and end-position (> new-pos end-position)))
-        (let ((x (number->string pos 16)))
-          (if (< (string-length x) 8)
-              (display (make-string (- 8 (string-length x)) #\space)))
-          (display x))
+        (display-addr pc)
         (display ": ")
         (for-each (lambda (x)
                     (let ((tag (car x))
@@ -104,7 +131,8 @@
         (display (make-string (- 31 (* 2 (- new-pos pos))) #\space))
         (print-instr/sexpr i)
         (newline)
-        (lp new-pos)))))
+        (let ((new-pc (+ pc (- new-pos pos))))
+          (lp new-pos new-pc (next-symbol symbols new-pc)))))))
 
 (define (get-elf-disassembler machine endianness)
   (cond #;((= machine EM-ARM) (lambda (p c) (arm:get-instruction p #f c)))
@@ -114,7 +142,7 @@
         ((= machine EM-MIPS) (lambda (p c) (mips:get-instruction p endianness c)))
         (else
          (display "No support for this architecture: ")
-         (cond ((assv machine EM-names) =>
+         (cond ((assv machine elf-machine-names) =>
                 (lambda (n) (display (cdr n))))
                (else
                 (display "Unknown architecture (")
@@ -123,28 +151,56 @@
          (newline)
          (exit))))
 
+;; Returns a list of (start-addr end-addr symbol) in increasing order.
+(define (parse-elf-symbols image)
+  (cond ((elf-image-symbols image) =>
+         (lambda (symbols)
+           (vector-sort! (lambda (s1 s2)
+                           (> (elf-symbol-value (cdr s1))
+                              (elf-symbol-value (cdr s2))))
+                         symbols)
+           (let lp ((ret '())
+                    (i 0))
+             (if (= i (vector-length symbols))
+                 ret
+                 (let* ((sym (vector-ref symbols i))
+                        (name (car sym)) (s (cdr sym)))
+                   (if (or (eqv? (elf-symbol-name s) 0)
+                           (eqv? (elf-symbol-shndx s) SHN-UNDEF))
+                       (lp ret (+ i 1))
+                       (lp (cons (list (elf-symbol-value s)
+                                       (+ (elf-symbol-value s)
+                                          (elf-symbol-size s))
+                                       name)
+                                 ret)
+                           (+ i 1))))))))
+        (else '())))
+
 (define (disassemble-file filename arch color)
   (cond ((is-elf-image? filename)
          (display "ELF image detected. Looking for .text section...\n")
-         (let ((image (open-elf-image-file filename)))
-           (cond ((elf-input-file-section-by-name image ".text") =>
+         (let ((image (open-elf-image filename)))
+           (cond ((elf-image-section-by-name image ".text") =>
                   (lambda (text)
                     (let ((get-instruction (get-elf-disassembler
-                                            (elf-input-file-machine image)
-                                            (if (= (elf-input-file-endianness image) 1)
-                                                (endianness little) (endianness big)))))
-                      (set-port-position! (elf-input-file-port image)
-                                          (elf-section-header-offset text))
-                      (disassemble (elf-input-file-port image)
+                                            (elf-image-machine image)
+                                            (if (= (elf-image-endianness image) 1)
+                                                (endianness little) (endianness big))))
+                          (symbols (parse-elf-symbols image)))
+                      (set-port-position! (elf-image-port image)
+                                          (elf-section-offset text))
+                      (disassemble (elf-image-port image)
                                    get-instruction color
-                                   (+ (elf-section-header-offset text)
-                                      (elf-section-header-size text))))))
+                                   (+ (elf-section-offset text)
+                                      (elf-section-size text))
+                                   (elf-section-addr text)
+                                   symbols))))
                  (else
                   (display "This ELF image has no .text section. No disassembly for you.\n")))))
         (else
          (disassemble (open-file-input-port filename)
                       (cdr (assoc arch archs))
-                      color #f))))
+                      color #f 0 '()))))
 
 (define (parse-args args)
   (define (help . msg)
