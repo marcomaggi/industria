@@ -21,6 +21,7 @@
   (export is-elf-image?
           open-elf-image
 
+          make-elf-image elf-image?
           elf-image-port elf-image-word-size elf-image-endianness
           elf-image-os-abi elf-image-abi-version elf-image-type
           elf-image-machine elf-image-entry elf-image-phoff
@@ -28,15 +29,18 @@
           elf-image-phentsize elf-image-phnum elf-image-shentsize
           elf-image-shnum elf-image-shstrndx
 
+          make-elf-section elf-section?
           elf-section-name elf-section-type elf-section-flags
           elf-section-addr elf-section-offset elf-section-size
           elf-section-link elf-section-info elf-section-addralign
           elf-section-entsize
 
+          make-elf-segment elf-segment?
           elf-segment-type elf-segment-flags elf-segment-offset
           elf-segment-vaddr elf-segment-paddr elf-segment-filesz
           elf-segment-memsz elf-segment-align
 
+          make-elf-symbol elf-symbol?
           elf-symbol-name elf-symbol-other elf-symbol-shndx
           elf-symbol-value elf-symbol-size elf-symbol-binding
           elf-symbol-type
@@ -226,7 +230,6 @@
           (cons EM-X86-64 "AMD x86-64 architecture")
           (cons EM-68HC11 "Motorola MC68HC11 microcontroller")))
 
-
   (define-record-type elf-image
     (fields port word-size endianness os-abi abi-version
             type machine version
@@ -344,17 +347,18 @@
     (let ((port (elf-image-port image)))
       (set-port-position! port (+ (elf-image-phoff image)
                                   (* (elf-image-phentsize image) index)))
-      (call-with-values (lambda ()
-                          (let ((bv (get-bytevector-n port
-                                                      (elf-image-phentsize image))))
-                            (if (= (elf-image-word-size image) 1)
-                                (if (= (elf-image-endianness image) 1)
-                                    (unpack "<8L" bv)
-                                    (unpack ">8L" bv))
-                                (if (= (elf-image-endianness image) 1)
-                                    (unpack "<2L6Q" bv)
-                                    (unpack ">2L6Q" bv)))))
-        make-elf-segment)))
+      (let ((bv (get-bytevector-n port (elf-image-phentsize image))))
+        (if (= (elf-image-word-size image) 1)
+            (let-values (((type offset vaddr paddr filesz memsz flags align)
+                          (if (= (elf-image-endianness image) 1)
+                              (unpack "<8L" bv)
+                              (unpack ">8L" bv))))
+              (make-elf-segment type flags offset vaddr paddr filesz memsz align))
+            (let-values (((type flags offset vaddr paddr filesz memsz align)
+                          (if (= (elf-image-endianness image) 1)
+                              (unpack "<2L6Q" bv)
+                              (unpack ">2L6Q" bv))))
+              (make-elf-segment type flags offset vaddr paddr filesz memsz align))))))
 
 ;;; Symbol tables
 
@@ -402,21 +406,22 @@
                   (i 0 (+ i 1)))
                  ((= i (vector-length table))
                   table)
-               (if (= (elf-image-word-size image) 1)
-                   (let-values (((name value size info other shndx)
-                                 (if (= (elf-image-endianness image) 1)
-                                     (get-unpack p "<LLLCCS")
-                                     (get-unpack p ">LLLCCS"))))
-                     (vector-set! table i (cons (utf8z->string strtab name)
-                                                (make-elf-symbol
-                                                 name info other shndx value size))))
-                   (let-values (((name info other shndx value size)
-                                 (if (= (elf-image-endianness image) 1)
-                                     (get-unpack p "<LCCSQQ")
-                                     (get-unpack p ">LCCSQQ"))))
-                     (vector-set! table i (cons (utf8z->string strtab name)
-                                                (make-elf-symbol
-                                                 name info other shndx value size))))))))))
+               (let ((bv (get-bytevector-n p (elf-section-entsize symtab*))))
+                 (if (= (elf-image-word-size image) 1)
+                     (let-values (((name value size info other shndx)
+                                   (if (= (elf-image-endianness image) 1)
+                                       (unpack "<LLLCCS" bv)
+                                       (unpack ">LLLCCS" bv))))
+                       (vector-set! table i (cons (utf8z->string strtab name)
+                                                  (make-elf-symbol
+                                                   name info other shndx value size))))
+                     (let-values (((name info other shndx value size)
+                                   (if (= (elf-image-endianness image) 1)
+                                       (unpack "<LCCSQQ" bv)
+                                       (unpack ">LCCSQQ" bv))))
+                       (vector-set! table i (cons (utf8z->string strtab name)
+                                                  (make-elf-symbol
+                                                   name info other shndx value size)))))))))))
 
 ;;; Helpers
 
