@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -409,69 +409,65 @@
                reg ref))
       (define wordsize
         (fxarithmetic-shift-right mode 3))
-      (for-each
-       (lambda (x)
-         (cond ((and (list? x) (eq? (car x) '*)
-                     (exists symbol? (cdr x)))
-                ;; FIXME: this needs to be stricter, so it never matches expressions
-                (for-each (lambda (s/i)
-                            (cond ((eq? s/i 'wordsize)
-                                   (set! scale (* scale wordsize)))
-                                  ((integer? s/i)
-                                   (set! scale (* scale s/i)))
-                                  ((symbol? s/i)
-                                   (let ((index (lookup-register s/i)))
-                                     (case (register-type index)
-                                       ((32 64)
-                                        (set-index! index))
-                                       (else
-                                        (error who "Impossible index register"
-                                               index ref)))))
-                                  (else
-                                   (error who "Unknown scale or index"
-                                          s/i ref))))
-                          (cdr x)))
+      (define (translate x)
+        (cond ((and (pair? x) (eq? (car x) '*)
+                    (exists symbol? (cdr x)))
+               ;; FIXME: this needs to be stricter, so it never matches expressions
+               (for-each (lambda (s/i)
+                           (cond ((eq? s/i 'wordsize)
+                                  (set! scale (* scale wordsize)))
+                                 ((integer? s/i)
+                                  (set! scale (* scale s/i)))
+                                 ((symbol? s/i)
+                                  (let ((index (lookup-register s/i)))
+                                    (case (register-type index)
+                                      ((32 64)
+                                       (set-index! index))
+                                      (else
+                                       (error who "Impossible index register"
+                                              index ref)))))
+                                 (else
+                                  (error who "Unknown scale or index"
+                                         s/i ref))))
+                         (cdr x)))
 
-               ((register-name? x)
-                ;; A register!
-                (let ((reg (lookup-register x)))
-                  (case (register-type reg)
-                    ((64)
-                     (if base
-                         (set-index! reg)
-                         (set-base! reg)))
-                    ((32)
-                     (if base
-                         (set-index! reg)
-                         (set-base! reg)))
-                    ((16)
-                     (case (register-name reg)
-                       ((bx bp)
-                        (set-base! reg))
-                       ((si di)
-                        (set! index reg))
-                       (else
-                        (bad-reg reg))))
-                    ((rel)
-                     (set-base! reg)
-                     (set! addressing-mode 64))
-                    ((sreg)
-                     (when segment
-                       (error who "Multiple segment overrides are not possible"
-                              segment reg ref))
-                     (set! segment reg))
-                    (else
-                     (bad-reg reg)))))
+              ((register-name? x)
+               ;; A register!
+               (let ((reg (lookup-register x)))
+                 (case (register-type reg)
+                   ((64)
+                    (if base
+                        (set-index! reg)
+                        (set-base! reg)))
+                   ((32)
+                    (if base
+                        (set-index! reg)
+                        (set-base! reg)))
+                   ((16)
+                    (case (register-name reg)
+                      ((bx bp)
+                       (set-base! reg))
+                      ((si di)
+                       (set! index reg))
+                      (else
+                       (bad-reg reg))))
+                   ((rel)
+                    (set-base! reg)
+                    (set! addressing-mode 64))
+                   ((sreg)
+                    (when segment
+                      (error who "Multiple segment overrides are not possible"
+                             segment reg ref))
+                    (set! segment reg))
+                   (else
+                    (bad-reg reg)))))
 
-               ((or (symbol? x) (list? x) (integer? x))
-                ;; Part of an expression!
-                (set! addressing-mode (max addressing-mode 32))
-                (set! expr (cons x expr)))
+              (else
+               ;; Part of an expression!
+               (set! addressing-mode (max addressing-mode 32))
+               (set! expr (cons x expr)))))
 
-               (else
-                (error who "Unknown addressing mode"
-                       x ref))))
-       (cdr ref))
+      (for-each translate (cdr ref))
 
       (when (and base index (eq? (register-name base) 'rip))
         (error who "RIP-relative addressing combined with an index register is not possible"
@@ -562,8 +558,7 @@
     (let eval-expr ((expr expr))
       (cond ((integer? expr) expr)
             ((eq? expr 'wordsize) (fxarithmetic-shift-right mode 3))
-            ((symbol? expr) (hashtable-ref labels expr #f))
-            (else
+            ((pair? expr)
              (let ((operands (map eval-expr (cdr expr))))
                (and (for-all number? operands)
                     ;; Maybe EVAL could be used here
@@ -575,31 +570,34 @@
                       ((<< asl bitwise-arithmetic-shift-left) (apply bitwise-arithmetic-shift-left operands))
                       ((>> asr bitwise-arithmetic-shift-right) (apply bitwise-arithmetic-shift-right operands))
                       ((ash) (apply bitwise-arithmetic-shift operands))
-                      ((bitwise-bit-field) (apply bitwise-bit-field operands)))))))))
+                      ((bitwise-bit-field) (apply bitwise-bit-field operands))
+                      (else
+                       (error 'eval-expr
+                              "Unknown procedure in assembler expression" expr))))))
+            (else (hashtable-ref labels expr #f)))))
 
   (define (expression-labels expr)
     ;; Returns a list of all labels an expression refers to
     (let lp ((code (expression-code expr)))
       (cond ((integer? code) '())
             ((eq? code 'wordsize) '())
-            ((symbol? code) (list code))
-            (else
-             (apply append (map lp (cdr code)))))))
+            ((pair? code)
+             (apply append (map lp (cdr code))))
+            (else (list code)))))
 
   (define (build-expression op mode)
     (define (check-syntax op)
       ;; FIXME: use better syntax checking... or use EVAL?
-      (cond ((or (integer? op) (symbol? op)))
-            ((list? op)
-;;              (unless (and (memq (car op) '(+ -)) (>= (length op) 2))
-;;                (error 'build-expression "Bad assembler operand" op))
-             (when (and (memq (cadr op) '(eip rip))
-                        (not (integer? (caddr op)))
-                        (not (null? (cdddr op))))
-               (error 'build-expression "Bad rip-relative assembler operand" op)))
-            (for-each check-syntax (cdr op))))
+      (when (pair? op)
+        ;;              (unless (and (memq (car op) '(+ -)) (>= (length op) 2))
+        ;;                (error 'build-expression "Bad assembler operand" op))
+        (when (and (memq (cadr op) '(eip rip))
+                   (not (integer? (caddr op)))
+                   (not (null? (cdddr op))))
+          (error 'build-expression "Bad rip-relative assembler operand" op))
+        (for-each check-syntax (cdr op))))
     (check-syntax op)
-    (if (and (list? op) (eqv? (cadr op) '(eip rip)))
+    (if (and (pair? op) (eqv? (cadr op) '(eip rip)))
         (make-expression mode (if (eq? (cadr op) 'rip) 64 32)
                          #t (caddr op))
         (make-expression mode #f #f (or (eval-expr op mode empty-hashtable)
@@ -637,23 +635,17 @@
     (map (lambda (op)
            (cond ((or (register? op) (memory? op) (expression? op) (far-pointer? op))
                   op)
-
                  ((integer? op)
                   (build-expression op mode))
-
-                 ((symbol? op)
-                  (cond ((lookup-register op #f) =>
-                         (lambda (reg)
-                           (when (and (not (= mode 64))
-                                      (or (> (register-index reg) 7)
-                                          (eq? (register-type reg) 'rex8)))
-                             (error 'translate-operands
-                                    "This register is only reachable in 64-bit mode" op))
-                           reg))
-                        (else
-                         (build-expression op mode))))
-
-                 ((list? op)
+                 ((and (symbol? op) (lookup-register op #f)) =>
+                  (lambda (reg)
+                    (when (and (not (= mode 64))
+                               (or (> (register-index reg) 7)
+                                   (eq? (register-type reg) 'rex8)))
+                      (error 'translate-operands
+                             "This register is only reachable in 64-bit mode" op))
+                    reg))
+                 ((pair? op)
                   (cond ((eq? (car op) 'far)
                          ;; Far pointer
                          (build-far-pointer (cadr op) (caddr op) mode))
@@ -667,11 +659,9 @@
                         (else
                          ;; Memory reference
                          (translate-memory op mode))))
-
                  (else
-                  (error 'translate-operands
-                         "Invalid assembler operand"
-                         op operands))))
+                  ;; Everything else is treated as a label
+                  (build-expression op mode))))
          operands))
 
   (define (operand-labels op)
