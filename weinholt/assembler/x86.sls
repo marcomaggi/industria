@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Assembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -52,6 +52,9 @@
 ;; There is a lot that can be done to improve this. The best idea is
 ;; probably to use the opcode map to generate an assembler.
 
+;; TODO: errors need to contain a list of the last few instructions
+;; before the current bad instruction.
+
 (library (weinholt assembler x86 (1 0 0))
     (export assemble)
     (import (rnrs)
@@ -88,9 +91,10 @@
     (fields (mutable mode)
             (mutable port)
             (mutable ip)
-            (mutable labels)
+            (immutable labels)
             (mutable relocs)
-            (mutable comm)))
+            (mutable comm)
+            (immutable symbols)))
 
   (define min-s8 (- (expt 2 7)))
   (define max-s8 (- (expt 2 7) 1))
@@ -344,7 +348,6 @@
           (cond ((register? o) (eq? (register-type o) 'xmm))
                 ((memory? o) (memv (memory-datasize o) '(#f 128)))
                 (else #f)))
-        
 
         ;; Immediates
         (defop (Iz o opsize mode (immZ #f))
@@ -1232,6 +1235,26 @@
            (lambda (x y) (< (cadr x) (cadr y)))
            (reverse (assembler-state-comm state))))))
 
+      ((%call)
+       ;; (%call <procedure> <expr> ...)
+       (let ((proc (cadr instr))
+             (args (cddr instr)))
+         ;; XXX: the procedure can introduce unknown labels, which
+         ;; means that the assembler will loop forever, but there are
+         ;; many other ways the procedure can mess things up, too.
+         (let ((adjust (apply proc (lambda (instr)
+                                     (assemble! (limited-translate-operands
+                                                 instr (assembler-state-mode state))
+                                                state))
+                              (assembler-state-port state)
+                              (assembler-state-ip state)
+                              (assembler-state-symbols state)
+                              (map (lambda (operand)
+                                     (eval-expression operand
+                                                      (assembler-state-labels state)))
+                                   args))))
+           (assembler-state-ip-set! state (+ (assembler-state-ip state) adjust)))))
+
       (else
        (let ((pos (port-position (assembler-state-port state))))
          ;; FIXME: evaluate expressions here, so that a guess can be
@@ -1242,68 +1265,120 @@
                                                (assembler-state-port state))
                                               pos)))))))
 
+  (define (limited-translate-operands instr mode)
+    (case (car instr)
+      ((%section %align %utf8z %vu8 %origin %label %comm %mode)
+       instr)
+      ((%call)
+       (let ((operands (translate-operands (cddr instr) mode))
+             (proc (cadr instr)))
+         (unless (procedure? proc)
+           (error 'assemble
+                  "The first parameter of a %call must be a procedure" instr))
+         (cons (car instr) (cons proc operands))))
+      (else                             ; regular instructions
+       (cons (car instr) (translate-operands (cdr instr) mode)))))
+
+  (define (translate-operands-code code)
+    ;; Parsing, more or less.
+    (define (check-label instr)
+      ;; Check for duplicate labels and record known labels
+      (hashtable-update! known-labels
+                         (cadr instr)
+                         (lambda (old-label)
+                           (when (and old-label (not (number? (cadr instr))))
+                             (error 'assemble "Duplicate label" instr))
+                           #t)
+                         #f))
+    (define known-labels (make-eq-hashtable))
+    (define used-labels (make-eq-hashtable))
+    (let lp ((code code)
+             (mode 16)
+             (symbols '())
+             (section #f)
+             (ret '()))
+      (cond ((null? code)
+             (vector-for-each (lambda (label)
+                                (unless (hashtable-ref known-labels label #f)
+                                  (error 'assembler "Unknown label" label)))
+                              (hashtable-keys used-labels))
+             #;
+             (vector-for-each (lambda (label)
+                                (unless (hashtable-ref used-labels label #f)
+                                  (print "#;unused-label " label)))
+                              (hashtable-keys known-labels))
+             (values (reverse ret) (reverse symbols)))
+            (else
+             (case (caar code)
+               ((%label)
+                ;; (%label label)
+                ;; (%label label end . misc)
+                (check-label (car code))
+                (let* ((label (cdar code))
+                       (name (car label))
+                       (end (if (null? (cdr label)) name (cadr label)))
+                       (misc (if (null? (cdr label)) (cdr label) (cddr label))))
+                  ;; Record the symbol
+                  (unless (eq? name end) (hashtable-set! used-labels end #t))
+                  (lp (cdr code) mode
+                      (cons (cons name (cons end (cons section misc))) symbols)
+                      section (cons (car code) ret))))
+               ((%comm)
+                (check-label (car code))
+                (let* ((label (cdar code))
+                       (name (car label))
+                       (end `(+ ,name ,(cadr label))))
+                  ;; Record the bss symbol
+                  (lp (cdr code) mode
+                      (cons (list name end 'bss) symbols)
+                      section (cons (car code) ret))))
+               ((%section)
+                (lp (cdr code) mode symbols (cadar code) (cons (car code) ret)))
+               ((%section %align %utf8z %vu8 %origin)
+                (lp (cdr code) mode symbols section (cons (car code) ret)))
+               ((%mode)
+                ;; New mode
+                (let ((mode (cadar code)))
+                  (unless (memv mode '(16 32 64))
+                    (error 'assemble "Bad %mode" (car code)))
+                  (lp (cdr code) (cadar code)
+                      symbols section
+                      (cons (car code) ret))))
+               ((%call)
+                (let ((operands (translate-operands (cddar code) mode))
+                      (proc (cadar code)))
+                  (unless (procedure? proc)
+                    (error 'assemble
+                           "The first parameter of a %call must be a procedure"
+                           (car code)))
+                  (for-each (lambda (op)
+                              (for-each (lambda (x)
+                                          (hashtable-set! used-labels x #t))
+                                        (operand-labels op)))
+                            operands)
+                  (lp (cdr code)
+                      mode symbols section
+                      (cons (cons (caar code) (cons proc operands))
+                            ret))))
+               (else
+                ;; Translate the operands, keeping the mnemonic as a symbol.
+                (let ((operands (translate-operands (cdar code) mode)))
+                  (for-each (lambda (op)
+                              (for-each (lambda (x)
+                                          (hashtable-set! used-labels x #t))
+                                        (operand-labels op)))
+                            operands)
+                  (lp (cdr code)
+                      mode symbols section
+                      (cons (cons (caar code) operands)
+                            ret)))))))))
   
   (define (assemble code)
-    (define (translate-operands-code code)
-      ;; Parsing more or less
-      (define known-labels (make-eq-hashtable))
-      (define used-labels (make-eq-hashtable))
-      (let lp ((code code)
-               (mode 16)
-               (ret '()))
-        (cond ((null? code)
-               (vector-for-each (lambda (label)
-                                  (unless (hashtable-ref known-labels label #f)
-                                    (error 'assembler "Unknown label" label)))
-                                (hashtable-keys used-labels))
-               (vector-for-each (lambda (label)
-                                  (unless (hashtable-ref used-labels label #f)
-                                    (print "#;unused-label " label)))
-                                (hashtable-keys known-labels))
-               (reverse ret))
-              (else
-               (case (caar code)
-                 ((%label %comm)
-                  ;; Check for duplicate labels
-                  (hashtable-update! known-labels
-                                     (cadar code)
-                                     (lambda (old-label)
-                                       (when (and old-label
-                                                  (not (number? (cadar code))))
-                                         (error 'assemble "Duplicate label"
-                                                (cadar code)))
-                                       #t)
-                                     #f)
-                  ;; Keep the operands as they are
-                  (lp (cdr code) mode (cons (car code) ret)))
-                 ((%section %align %utf8z %vu8 %origin)
-                  (lp (cdr code) mode (cons (car code) ret)))
-                 ((%mode)
-                  ;; New mode
-                  (let ((mode (cadar code)))
-                    (unless (memv mode '(16 32 64))
-                      (error 'assemble! "Bad %mode" (car code)))
-                    (lp (cdr code) (cadar code) (cons (car code) ret))))
-                 (else
-                  ;; Translate the operands, keeping the mnemonic as a symbol.
-                  (let ((operands (translate-operands (cdar code) mode)))
-                    (for-each (lambda (op)
-                                (for-each (lambda (x)
-                                            (hashtable-set! used-labels x #t))
-                                          (operand-labels op)))
-                              operands)
-                    (lp (cdr code)
-                        mode
-                        (cons (cons (caar code) operands)
-                              ret)))))))))
-    (let ((code (translate-operands-code code)))
+    (let-values (((code symbols) (translate-operands-code code)))
       (let lp ((labels '#())
-               (state (make-assembler-state 16
-                                            #f
-                                            0
+               (state (make-assembler-state 16 #f 0
                                             (make-eq-hashtable)
-                                            #f
-                                            '())))
+                                            #f '() symbols)))
         (let-values (((tmpport extract) (open-bytevector-output-port)))
           (assembler-state-port-set! state tmpport)
           (for-each (lambda (i) (assemble! i state)) code)
@@ -1319,19 +1394,16 @@
                    (print labels)
                    (print newlabels)
                    (lp newlabels
-                       (make-assembler-state 16
-                                             #f
-                                             0
+                       (make-assembler-state 16 #f 0
                                              (assembler-state-labels state)
-                                             #f
-                                             '())))
+                                             #f '() symbols)))
                   (else
-                   (print ";Symbol table:")
-                   (vector-for-each
-                    (lambda (x) (print " '" (car x) " => #x"
-                                       (number->string (cdr x) 16)))
-                    newlabels)
-                   (print ";Assembly complete.")
+                   ;; (print ";Symbol table:")
+                   ;; (vector-for-each
+                   ;;  (lambda (x) (print " '" (car x) " => #x"
+                   ;;                     (number->string (cdr x) 16)))
+                   ;;  newlabels)
+                   ;; (print ";Assembly complete.")
                    (values (extract) (assembler-state-labels state)))))))))
 
 
