@@ -1,0 +1,194 @@
+#!/usr/bin/env scheme-script
+;; -*- mode: scheme; coding: utf-8 -*- !#
+;; Demo for (weinholt x86 assembler), makes a Linux ELF binary
+;; Copyright © 2011 Göran Weinholt <goran@weinholt.se>
+;;
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#!r6rs
+
+;; This program assembles a statically linked Linux i386 ELF image
+;; that prints a familiar greeting.
+
+(import (rnrs)
+        (only (srfi :1 lists) list-index)
+        (only (srfi :13 strings) string-contains)
+        (weinholt assembler x86 (1))
+        (weinholt assembler elf)
+        (weinholt binfmt elf (1))
+        (weinholt struct pack))
+
+(define segments '(text data))
+
+(define sections '("" ".text" ".data" ".shstrtab" ".strtab" ".symtab"))
+
+(define shstrtab
+  (call-with-string-output-port
+    (lambda (p)
+      (for-each (lambda (name) (put-string p name) (put-char p #\nul))
+                sections))))
+
+(define (elf32-header entry)
+  (define ph-start (vector))
+  `((%label _elf_start)
+    ,@(elf-32-assembler (make-elf-image
+                         #f ELFCLASS32 ELFDATA2LSB ELFOSABI-SYSV 0
+                         ET-EXEC EM-386 EV-CURRENT
+                         entry
+                         (if (null? segments) 0 '(- _elf_ph_start _elf_start))
+                         (if (null? sections) 0 '(- _elf_sh_start _elf_start))
+                         0 #f #f (length segments) #f (length sections)
+                         (or (list-index (lambda (s) (string=? s ".shstrtab")) sections)
+                             SHN-UNDEF)))
+    ;; Program header for text
+    (%label _elf_ph_start)
+    ,@(elf-32-assembler (make-elf-segment PT-LOAD (bitwise-ior PF-R PF-X)
+                                          0 '_elf_start '_elf_start
+                                          '(- _fini _elf_start)
+                                          '(- _fini _elf_start)
+                                          (expt 2 12)))
+    ;; Program header for data and bss
+    ,@(elf-32-assembler (make-elf-segment PT-LOAD (bitwise-ior PF-R PF-W)
+                                          '(- _fini _elf_start)
+                                          'data_start 'data_start
+                                          '(- _edata data_start) '(- _end data_start)
+                                          (expt 2 12)))
+    ;; Section headers
+    (%label _elf_sh_start)
+    ,@(elf-32-assembler (make-elf-section 0 SHT-NULL 0 0 0 0 0 0 0 0))
+    ,@(elf-32-assembler (make-elf-section
+                         (string-contains shstrtab ".text")
+                         SHT-PROGBITS
+                         (bitwise-ior SHF-EXECINSTR SHF-ALLOC)
+                         'text '(- text _elf_start) '(- _fini text)
+                         0 0 0 #f))
+    ,@(elf-32-assembler (make-elf-section
+                         (string-contains shstrtab ".data")
+                         SHT-PROGBITS
+                         (bitwise-ior SHF-WRITE SHF-ALLOC)
+                         'data_start '(- _fini _elf_start) '(- _edata data_start)
+                         0 0 0 #f))
+    ,@(elf-32-assembler (make-elf-section
+                         (string-contains shstrtab ".shstrtab")
+                         SHT-STRTAB
+                         0 0 '(- _shstrtab_start _elf_start)
+                         '(- _shstrtab_end _shstrtab_start)
+                         0 0 0 #f))
+    ,@(elf-32-assembler (make-elf-section
+                         (string-contains shstrtab ".strtab")
+                         SHT-STRTAB
+                         0 0 '(- _strtab_start _elf_start)
+                         '(- _strtab_end _strtab_start)
+                         0 0 0 #f))
+    ,@(elf-32-assembler (make-elf-section
+                         (string-contains shstrtab ".symtab")
+                         SHT-SYMTAB
+                         0 0 '(- _symtab_start _elf_start)
+                         '(- _symtab_end _symtab_start)
+                         (list-index (lambda (s) (string=? s ".strtab"))
+                                     sections)
+                         0 0 #f))))
+
+(define hello-world
+  "Hello, world!\n")
+
+(define demo-text
+  `((%mode 32)
+    (%origin #x08048000)
+    ,@(elf32-header 'start)
+    (%align 8 0)
+    (%section text)
+    (%label text)
+    (%label start _fini global func)
+
+    (mov ebx 1)                            ;fd
+    (mov ecx hello-string)                 ;buf
+    (mov edx ,(string-length hello-world)) ;count
+    (mov eax 4)                            ;write
+    (int #x80)
+
+    (mov ebx 42)                        ;status
+    (mov eax 1)                         ;exit
+    (int #x80)
+
+    (%label _fini)))
+
+(define demo-data
+  `((%call ,(lambda x 4096))            ;.text and .data share a page
+    (%section data)
+    (%label data_start)
+    (%label hello-string)
+    (%utf8z ,hello-world)
+    (%label _edata)
+
+    ;; This does not take up space in the file, but will be
+    ;; allocated zeroed memory when the program is loaded.
+    (%align 16 0)
+    (%label bss)
+    (%section bss)
+    (%label _end)
+    ;; What follows does not get loaded into memory, but takes up
+    ;; space in the file.
+
+    (%section elf-stuff)
+    (%call ,(lambda (assemble! port ip symbols bss _end)
+              (- -4096 (- _end bss)))
+           bss _end)                    ;rewind back to .text
+    (%label _shstrtab_start)
+    (%vu8 ,(string->utf8 shstrtab))
+    (%label _shstrtab_end)
+
+    ;; Generating the symbol table properly would involve using a
+    ;; %call and then outputting strings and symbols with `assemble!'.
+    ;; The data from %label (with at least two arguments) and %comm is
+    ;; available in the `symbols' argument.
+    (%align 8 0)
+    (%label _strtab_start)
+    (%utf8z "")
+    (%label _strtab_start_start)
+    (%utf8z "start")
+    (%label _strtab_end)
+
+    (%align 4 0)
+    (%label _symtab_start)
+    ,@(elf-32-assembler (make-elf-symbol 0 0 0 0 0 0 0))
+    ,@(elf-32-assembler
+       (make-elf-symbol '(- _strtab_start_start _strtab_start)
+                        STB-GLOBAL STT-FUNC 0
+                        (list-index (lambda (s) (string=? s ".text"))
+                                    sections)
+                        'start '_fini))
+    (%label _symtab_end)))
+
+(define fn "x86-linux-demo.image")
+
+(call-with-port (open-file-output-port fn (file-options no-fail))
+  (lambda (p)
+    (let-values (((machine-code symbol-table)
+                  (assemble (append demo-text demo-data))))
+      (put-bytevector p machine-code)
+      (close-port p)
+      (let-values (((syms addrs) (hashtable-entries symbol-table)))
+        (display "Symbol table:\n")
+        (vector-for-each
+         (lambda (addr sym)
+           (display (number->string addr 16))
+           (display #\space)
+           (display sym)
+           (newline))
+         addrs syms)
+        (newline)))))
+
+(display "Wrote ")
+(display fn)
+(newline)
