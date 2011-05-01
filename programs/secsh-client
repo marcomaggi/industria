@@ -38,7 +38,7 @@
 (define (open-connection hostname portname)
   (let-values (((in out) (tcp-connect hostname portname)))
     (let ((conn (make-ssh-client in out)))
-      (ssh-finish-key-exchange conn)
+      (ssh-key-exchange conn)
       conn)))
 
 (define (reexchange conn algorithm)

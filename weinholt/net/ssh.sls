@@ -28,7 +28,7 @@
 
 ;; TODO: fast path for channel-data
 
-(library (weinholt net ssh (1 0 20110204))
+(library (weinholt net ssh (1 0 20110409))
   (export
     make-ssh-client make-ssh-server
     ssh-conn-peer-identification
@@ -37,7 +37,7 @@
     ssh-conn-session-id
     ssh-key-re-exchange                 ;XXX: good api?
     build-kexinit-packet key-exchange-packet? process-key-exchange-packet
-    ssh-finish-key-exchange
+    ssh-key-exchange
     ssh-conn-registrar
     ssh-error
     put-ssh get-ssh close-ssh
@@ -59,7 +59,8 @@
     preferred-languages-client->server
     preferred-languages-server->client
     ;; Debugging parameter
-    (rename (debug ssh-debugging)))
+    (rename (debug ssh-debugging))
+    ssh-debugging-port)
   (import (rnrs)
           (only (srfi :1 lists) iota)
           (only (srfi :13 strings) string-every string-join
@@ -84,22 +85,23 @@
   ;; bit 0 gives a few crappy messages, bit 1 gives packet tracing,
   ;; bit 2 gives packet hex dumps.
   (define debug (make-parameter #b000 (lambda (x) (fxand x #b111))))
+  (define ssh-debugging-port (make-parameter (current-error-port)))
 
   (define-syntax trace
     (syntax-rules ()
       ((_ . args)
        (when (fxbit-set? (debug) 0)
-         (for-each display (list . args))
-         (newline)))
+         (for-each (lambda (x) (display x (ssh-debugging-port))) (list . args))
+         (newline (ssh-debugging-port))))
       ((_ . args) (values))))
 
   (define-syntax packet-trace
     (syntax-rules ()
       ((_ prefix packet)
        (when (fxbit-set? (debug) 1)
-         (display prefix)
-         (write packet)
-         (newline)))
+         (display prefix (ssh-debugging-port))
+         (write packet (ssh-debugging-port))
+         (newline (ssh-debugging-port))))
       ((_ . args) (values))))
 
   (define (check-version disallow)
@@ -290,7 +292,8 @@
                      SSH-DISCONNECT-MAC-ERROR))
         (buffer-shorten! b padding)
         (when (fxbit-set? (debug) 2)
-          (hexdump #f (buffer-data b) (buffer-top b) (buffer-bottom b) "<" "; "))
+          (hexdump (ssh-debugging-port)
+                   (buffer-data b) (buffer-top b) (buffer-bottom b) "<" "; "))
         seq)))
 
   (define (put-packet conn payload)
@@ -320,7 +323,7 @@
       (bytevector-randomize! buf head+payload padding)
       (let ((mac ((ssh-conn-write-mac conn) seq buf (+ head+payload padding))))
         (when (fxbit-set? (debug) 2)
-          (hexdump #f buf (format-size "!LC") head+payload ">" "; "))
+          (hexdump (ssh-debugging-port) buf (format-size "!LC") head+payload ">" "; "))
         ((ssh-conn-writer conn) (ssh-conn-out conn) buf (+ head+payload padding))
         (put-bytevector (ssh-conn-out conn) mac))))
 
@@ -679,7 +682,7 @@
       conn))
 
   ;; This runs the initial key exchange
-  (define (ssh-finish-key-exchange conn)
+  (define (ssh-key-exchange conn)
     (run-kex conn)
     (let ((msg (get-ssh conn)))
       (unless (newkeys? msg)

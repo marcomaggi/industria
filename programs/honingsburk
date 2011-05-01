@@ -148,7 +148,7 @@
 (define (server conn)
   (let ((ID #f)
         (userid "root"))
-    (ssh-finish-key-exchange conn)
+    (ssh-key-exchange conn)
     (let ((service (get-ssh conn)))   ;probably service-request
       (put-ssh conn (make-service-accept "ssh-userauth"))
       (register-userauth (ssh-conn-registrar conn)))
