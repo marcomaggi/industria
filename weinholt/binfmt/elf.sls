@@ -17,17 +17,17 @@
 
 ;; Routines for reading the Executable and Linkable Format (ELF)
 
-(library (weinholt binfmt elf (1 0 20110430))
+(library (weinholt binfmt elf (1 0 20110501))
   (export is-elf-image?
           open-elf-image
 
           make-elf-image elf-image?
           elf-image-port elf-image-word-size elf-image-endianness
           elf-image-os-abi elf-image-abi-version elf-image-type
-          elf-image-machine elf-image-entry elf-image-phoff
-          elf-image-shoff elf-image-flags elf-image-ehsize
-          elf-image-phentsize elf-image-phnum elf-image-shentsize
-          elf-image-shnum elf-image-shstrndx
+          elf-image-machine elf-image-version elf-image-entry
+          elf-image-phoff elf-image-shoff elf-image-flags
+          elf-image-ehsize elf-image-phentsize elf-image-phnum
+          elf-image-shentsize elf-image-shnum elf-image-shstrndx
 
           make-elf-section elf-section?
           elf-section-name elf-section-type elf-section-flags
@@ -43,7 +43,7 @@
           make-elf-symbol elf-symbol?
           elf-symbol-name elf-symbol-other elf-symbol-shndx
           elf-symbol-value elf-symbol-size elf-symbol-binding
-          elf-symbol-type
+          elf-symbol-type elf-symbol-info
 
           elf-image-section-by-name
           elf-image-sections
@@ -368,13 +368,22 @@
             other                       ;reserved
             shndx                       ;section index
             value
-            size))
+            size)
+    (protocol
+     (lambda (p)
+       (case-lambda
+         ((name info other shndx value size)
+          (p name info other shndx value size))
+         ((name binding type other shndx value size)
+          (let ((info (fxior (fxarithmetic-shift-left binding 4)
+                             type)))
+            (p name info other shndx value size)))))))
 
   (define (elf-symbol-binding x)
-    (bitwise-bit-field (elf-symbol-info x) 0 4))
+    (fxbit-field (elf-symbol-info x) 0 4))
 
   (define (elf-symbol-type x)
-    (bitwise-bit-field (elf-symbol-info x) 4 8))
+    (fxbit-field (elf-symbol-info x) 4 8))
 
   (define STB-LOCAL 0)
   (define STB-GLOBAL 1)
