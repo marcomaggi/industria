@@ -17,7 +17,7 @@
 
 ;; Translation of ELF structures into assembler directives.
 
-(library (weinholt assembler elf (1 0 20110501))
+(library (weinholt assembler elf (1 0 20110503))
   (export elf-32-assembler elf-64-assembler)
   (import (rnrs)
           (weinholt binfmt elf (1))
@@ -129,9 +129,10 @@
                    ,(elf-image-shnum x)
                    ,(elf-image-shstrndx x))))
           ((elf-symbol? x)
-           `((%u32 ,(elf-symbol-name x) ,(elf-symbol-value x) ,(elf-symbol-size x))
+           `((%u32 ,(elf-symbol-name x))
              (%u8 ,(elf-symbol-info x) ,(elf-symbol-other x))
-             (%u16 ,(or (elf-symbol-shndx x) SHN-UNDEF))))
+             (%u16 ,(or (elf-symbol-shndx x) SHN-UNDEF))
+             (%u64 ,(elf-symbol-value x) ,(elf-symbol-size x))))
           (else
            (error 'elf-32-assembler
                   "Don't know how to convert this type to assembler directives" x)))))
