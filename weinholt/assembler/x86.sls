@@ -241,6 +241,11 @@
           (and (register? o) (memv (register-type o) '(16 32 64))))
         (defop (Gb o opsize mode (reg #f))
           (and (register? o) (memv (register-type o) '(8 norex8 rex8))))
+        (defop (Gd/q o opsize mode (reg operand-size))
+          (and (register? o)
+               (if (= mode 16)
+                   (eqv? (register-type o) 32)
+                   (eqv? (register-type o) mode))))
         (defop (Rd/q o opsize mode (r/m #f))
           (and (register? o)
                (case mode
@@ -287,7 +292,11 @@
           ;; FIXME: far pointer, check the size and all. The operand
           ;; size override is also valid here actually.
           (memory? o))
-
+        (defop (Md/q o opsize mode (mem operand-size))
+          (and (memory? o)
+               (if (= mode 16)
+                   (eqv? (memory-datasize o) 32)
+                   (eqv? (memory-datasize o) mode))))
 
         ;; Destination operand for the string instructions
         (defop (Yv o opsize mode (#f operand-size))
@@ -460,7 +469,7 @@
                                        bytes)))
                           i
                           '#(0 1 2 3 4 5 6 7))
-                         (walk-opcodes f i (cons (list 'reg= reg) bytes))))
+                         (walk-opcodes f i (cons (list 'mod/reg= mod reg) bytes))))
                    table
                    '#(0 1 2 3 4 5 6 7)))))
         (walk-modr/m-table (vector-ref instr 2) #b00)
@@ -519,8 +528,8 @@
     (cond ((null? encoding)
            #f)
           ((and (list? (car encoding))
-                (eq? (caar encoding) 'reg=))
-           (make-modr/m 0 (cadar encoding) 0))
+                (eq? (caar encoding) 'mod/reg=))
+           (make-modr/m (cadar encoding) (caddar encoding) 0))
           (else
            (encoding-ModR/M (cdr encoding)))))
 
@@ -1372,7 +1381,7 @@
                       mode symbols section
                       (cons (cons (caar code) operands)
                             ret)))))))))
-  
+
   (define (assemble code)
     (let-values (((code symbols) (translate-operands-code code)))
       (let lp ((labels '#())
