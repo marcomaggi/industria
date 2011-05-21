@@ -21,7 +21,7 @@
 
 ;; http://www.iana.org/assignments/dns-parameters
 
-(library (weinholt net dns numbers (1 0 20110123))
+(library (weinholt net dns numbers (1 0 20110521))
   (export dns-rrtype integer->dns-rrtype
           dns-class integer->dns-class
           dns-opcode
@@ -48,25 +48,31 @@
   ;; return all mnemonics as an alist.
   (define-syntax define-mnemonics
     (lambda (x)
+      (define (symappend name suffix)
+        (datum->syntax name
+                       (string->symbol
+                        (string-append (symbol->string (syntax->datum name))
+                                       suffix))))
       (syntax-case x ()
         ((_ name . rest)
-         (symbol? (syntax->datum #'name))
-         (let lp ((rest #'rest) (acc '()) (mnemonics '()))
-           (with-syntax ((acc acc) (mnemonics mnemonics))
+         (identifier? #'name)
+         (let lp ((rest #'rest) (acc '()))
+           (with-syntax ((acc acc))
              (syntax-case rest ()
                ((mnemonic number . rest)
-                (symbol? (syntax->datum #'mnemonic))
-                (lp #'rest #'((mnemonic number) . acc)
-                    #'(mnemonic . mnemonics)))
+                (identifier? #'mnemonic)
+                (lp #'rest #'((mnemonic number) . acc)))
                (()
-                (with-syntax ((dummy (generate-temporaries '(name))))
+                ;; XXX: naming the dummy manually to work around a bug
+                ;; in Guile 2.0.1 (likely bug #31472)
+                (with-syntax ((dummy (symappend #'name "-alist")))
                   (syntax-case #'acc ()
                     (((mnemonic number) ...)
                      #'(begin
                          (define dummy '((number . mnemonic) ...))
                          (define-syntax name
                            (lambda (x)
-                             (syntax-case x mnemonics
+                             (syntax-case x (mnemonic ...)
                                ((_ mnemonic) #'number)
                                ...
                                ((_ something)
@@ -75,7 +81,7 @@
                                      see (weinholt net dns numbers)."
                                  x #'something))
                                ((_) #'dummy))))))))))))))))
-  
+
   ;; Registry Name: Resource Record (RR) TYPEs
   (define-mnemonics dns-rrtype
   ;; TYPE         Value and meaning                              Reference
@@ -218,7 +224,7 @@
 
   ;;; XXX: note the duplicate rcode assignment of 16. One is for the
   ;;; TSIG resource's error field.
-  
+
   ;; Registry Name: DNS RCODEs
   ;; Mnemonics from the IANA dns-parameters file
   (define-mnemonics dns-rcode
@@ -337,7 +343,7 @@
       (cond ((assv x alist) => cdr)
             (else (string->symbol
                    (string-append prefix (number->string x)))))))
-  
+
   (define integer->dns-rrtype
     (looker-upper (dns-rrtype) "TYPE"))
 
