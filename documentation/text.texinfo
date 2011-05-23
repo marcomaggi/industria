@@ -5,6 +5,7 @@
 
 @menu
 * text base64::        Base64 encoding and decoding
+* text internet::      Internet address parsing and formatting
 @end menu
 
 @c ======================================================================
@@ -114,6 +115,78 @@ The alphabet used by the standard Base64 encoding. The alphabet is
 The alphabet used by the base64url encoding. The alphabet is
 @code{#\A}--@code{#\Z}, @code{#\a}--@code{#\z},
 @code{#\0}--@code{#\9}, @code{#\-}, @code{#\_}.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
+
+@c ======================================================================
+@node text internet
+@subsection Internet address parsing and formatting
+The @code{(weinholt text internet)} library helps you correctly parse
+and format IPv4 and IPv6 addresses. This was a relatively trivial task
+when the Internet used the 32-bit IPv4 addresses. But when the newer
+128-bit IPv6 addresses are represented as strings they can be
+compressed (meaning that sequences of zeroes may be omitted). An IPv6
+address can actually be written in a great number of ways, and this
+has resulted in a recommended textual representation (RFC 5952).
+
+The IPv6 code does not yet handle embedded IPv4 addresses.
+
+@deffn Procedure ipv4->string bytevector
+The IPv4 address in @var{bytevector} is converted to the canonical
+string representation.
+@end deffn
+
+@deffn Procedure string->ipv4 string
+The textually represented IPv4 address in @var{string} is converted to
+its bytevector representation.
+
+If the string does not represent an IPv4 address, @code{#f} is
+returned.
+
+Note that this only handles the normal dotted-decimal notation. Some
+libraries, e.g.@: the standard C library, provide a function that
+parses addresses in octal, hex, and even handles some octets being
+missing. This library does none of that. Up to two leading zeroes may
+be used, though:
+
+@example
+(import (weinholt text internet))
+(ipv4->string (string->ipv4 "192.000.002.000"))
+@result{} "192.0.2.0"
+@end example
+@end deffn
+
+@deffn Procedure ipv6->string bytevector
+The IPv6 address in @var{bytevector} is converted to the string
+representation recommended by RFC 5952.
+
+@example
+(ipv6->string (string->ipv6 "2001:db8:0:0:0:0:0:1"))
+@result{} "2001:db8::1"
+@end example
+@end deffn
+
+@deffn Procedure string->ipv6 string
+The textually represented IPv6 address in @var{string} is converted to
+its bytevector representation. The input may be in any valid format.
+
+If the string does not represent an IPv6 address, @code{#f} is
+returned.
+
+@example
+(string->ipv6 "2001:db8:0:0:0:0:1")
+@result{} #f
+@end example
+@example
+(string->ipv6 "2001:db8::1")
+@result{} #vu8(32 1 13 184 0 0 0 0 0 0 0 0 0 0 0 1)
+@end example
 @end deffn
 
 @noindent

@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@
 ;; RFC 4291 IP Version 6 Addressing Architecture.
 ;; RFC 5952 A Recommendation for IPv6 Address Text Representation.
 
-(library (weinholt text internet (1 0 20101229))
-  (export ipv4->string #;string->ipv4
+(library (weinholt text internet (1 0 20110523))
+  (export ipv4->string string->ipv4
           ipv6->string string->ipv6)
   (import (rnrs)
           (only (srfi :13 strings) string-join string-prefix?)
@@ -29,13 +29,41 @@
           (weinholt text strings))
 
   (define (ipv4->string addr)
-    (string-join (map number->string (bytevector->u8-list addr))
-                 "."))
+    (call-with-string-output-port
+      (lambda (o)
+        (define (write-octet i)
+          (put-datum o (bytevector-u8-ref addr i)))
+        (define (write-dot)
+          (put-char o #\.))
+        (write-octet 0) (write-dot)
+        (write-octet 1) (write-dot)
+        (write-octet 2) (write-dot)
+        (write-octet 3))))
 
-  ;; TODO: this is too simple, needs checks
-  ;; (define (string->ipv4 str)
-  ;;   (u8-list->bytevector (map string->number (string-split str #\. 4))))
-  
+  ;; Accepts leading zeros, like in: 192.000.002.000
+  (define (string->ipv4 str)
+    (let-values (((o extract) (open-bytevector-output-port)))
+      (let ((i (open-string-input-port str)))
+        (define (parse-octet)
+          (let lp ((octet 0) (n 3))
+            (let ((c (lookahead-char i)))
+              (if (and (positive? n) (char? c) (char<=? #\0 c #\9))
+                  (lp (+ (* octet 10)
+                         (- (char->integer (get-char i))
+                            (char->integer #\0)))
+                      (- n 1))
+                  (cond ((and (<= 0 octet 255) (< n 3))
+                         (put-u8 o octet)
+                         #t)
+                        (else #f))))))
+        (define (parse-dot)
+          (eqv? (get-char i) #\.))
+        (and (parse-octet) (parse-dot)
+             (parse-octet) (parse-dot)
+             (parse-octet) (parse-dot)
+             (parse-octet) (eof-object? (get-char i))
+             (extract)))))
+
   (define (word i addr) (unpack "!uS" addr (fx+ i i)))
 
   (define (compression-index addr)
