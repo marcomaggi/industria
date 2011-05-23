@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; Print the checksum/hash of a file
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
         (weinholt crypto md5)
         (weinholt crypto crc)
         (only (srfi :13 strings) string-join string-pad)
-        (srfi :26 cut)
         (rnrs))
 
 (define (checksum-port/hash make-state update! finish! ->string)
@@ -97,8 +96,8 @@ The algorithm can be one of: "
            (current-error-port))
   (exit 1))
 
-(let ((csum (cond ((assp (cut string-ci=? <> (cadr (command-line)))
-                         algorithms)
+(let ((csum (cond ((assoc (string-downcase (cadr (command-line)))
+                          algorithms)
                    => (lambda (a) ((cdr a))))
                   (else
                    (display "No such algorithm has been defined: "
