@@ -17,7 +17,7 @@
 
 ;; Routines for reading the Executable and Linkable Format (ELF)
 
-(library (weinholt binfmt elf (1 0 20110501))
+(library (weinholt binfmt elf (1 0 20110523))
   (export is-elf-image?
           open-elf-image
 
@@ -135,11 +135,13 @@
   ;; Takes a filename or a binary input port and returns #t if the
   ;; file looks like an ELF image.
   (define (is-elf-image? f)
-    (let* ((f (file f))
-           (pos (port-position f)))
-      (set-port-position! f 0)
-      (let ((bv (get-bytevector-n f 16)))
-        (set-port-position! f pos)
+    (let* ((p (file f))
+           (pos (port-position p)))
+      (set-port-position! p 0)
+      (let ((bv (get-bytevector-n p 16)))
+        (set-port-position! p pos)
+        (unless (input-port? f)
+          (close-input-port p))
         (and (bytevector? bv)
              (= (bytevector-length bv) 16)
              (let-values (((magic word-size endian version)
