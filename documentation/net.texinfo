@@ -7,6 +7,8 @@
 * net irc::            Internet Relay Chat
 * net irc fish::       Blowcrypt/FiSH encryption for IRC
 * net otr::            Off-the-Record Messaging
+@c * net ssh::            Secure Shell (SSH)
+* net tcp::            Basic TCP client connections
 * net tls simple::     Transport Layer Security (simple interface)
 @end menu
 
@@ -555,6 +557,36 @@ Version history:
 make it unsafe.
 @end itemize
 
+
+@c ======================================================================
+@c @include net-ssh.texinfo
+
+@c ======================================================================
+@node net tcp
+@subsection Basic TCP client connections
+The @code{(weinholt net tcp)} provides a simple TCP client. This
+library needs implementation-specific code, so the author is not eager
+to provide more than the bare minimum.
+
+This library should work with Ikarus Scheme, GNU Guile, Mosh Scheme,
+Petite Chez Scheme (as long as the nc command installed), Vicare
+Scheme, and Ypsilon Scheme. Once upon a time it also worked with PLT
+Scheme, but it has not been tested with Racket.
+
+@deffn Procedure tcp-connect hostname portname
+Initiates a TCP connection to the given @var{hostname} and
+@var{portname} (both of which are strings).
+
+Returns an input-port and an output-port. They are not guaranteed to
+be distinct.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(0 0)} -- Initial version.
+@end itemize
 
 @c ======================================================================
 @node net tls simple
