@@ -99,7 +99,7 @@ later version published by the Free Software Foundation.
 @menu
 @c * archive::            File archive utilities
 @c * assembler::          Machine code assemblers
-@c * binfmt::             Executable file format utilities
+* binfmt::             Executable file format utilities
 * compression::        Data decompression
 * crypto::             Cryptographic primitives
 * disassembler::       Machine code disassemblers
@@ -109,6 +109,7 @@ later version published by the Free Software Foundation.
 * types::              Data types and utilities
 @end menu
 
+@include binfmt.texinfo
 @include compression.texinfo
 @include crypto.texinfo
 @include disassembler.texinfo

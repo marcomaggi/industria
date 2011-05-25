@@ -18,7 +18,7 @@ It is either @code{#f} or a procedure of the following form:
 architecture, but the bytes are the bytes forming the instruction.
 The procedure is used to tell the caller what function each byte of
 an instruction performs. This works best for architectures that use
-variable-length instructions. For most instruction there will be
+variable-length instructions. For most instructions there will be
 multiple calls to the collector.
 
 @menu

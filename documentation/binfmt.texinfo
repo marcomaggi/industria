@@ -1,0 +1,596 @@
+@c -*-texinfo-*-
+
+@node binfmt
+@section Executable file format utilities
+
+@menu
+* binfmt elf::        Parsers for the Executable and Linkable Format (ELF)
+@end menu
+
+@c ======================================================================
+@node binfmt elf
+@subsection Parsers for the Executable and Linkable Format (ELF)
+The @code{(weinholt binfmt elf)} library contains parsers for the
+popular ELF file format used in many operating systems. The format is
+used for executable files, relocatable object files and shared object
+files. The library exports procedures that parse these files.
+
+Many constants are also exported. The constants are described near the
+procedures that return them. These constants may be used to construct
+ELF images, but this library does not have any code for doing so.
+@c xref{assembler elf}.
+
+ELF images contain three categories of data: the ELF header, programs
+headers and section headers. The ELF header indicates the type of
+file. When an ELF executable is loaded into memory the program headers
+are used to map from file offsets to virtual memory addresses. The
+section headers contain information used by various tools. The symbol
+table, relocation data, and everything else is stored in section
+headers.
+
+The term ``program header'' was too cumbersome, so the shorter
+``segment'' has been used instead. The names of the exported constants
+are very similar to those given in the ELF specifications. Underscores
+have been changed to minus signs.
+
+@emph{Note}: The library assumes that any ports given to it can handle
+@code{port-position} and @code{set-port-position!}.
+
+@deffn Procedure is-elf-image? input-port/filename
+This procedures accepts either a filename or a binary input port.
+Returns @code{#t} if the file or port starts with what looks like an
+ELF image. If it is not an ELF image @code{#f} is returned. The port
+is returned to its previous position.
+
+@vtable @code
+@item ELF-MAGIC
+This constant contains the ``magic'' integer used at the start of ELF
+images.
+@end vtable
+@end deffn
+
+@deffn Procedure open-elf-image input-port/filename
+This procedure accepts a filename or an binary input port. The ELF
+header at the start of the file is parsed and returned as an elf-image
+object.
+
+The returned object contains the input port that was used to read the
+header, so that the rest of the procedures in this library do not need
+to take an extra port argument. All other fields contain integers.
+
+@example
+(import (weinholt binfmt elf))
+(open-elf-image "/bin/ls")
+@result{} #[elf-image #<input-port (binary) "/bin/ls">
+     2 1 0 0 262 1 4203856 64 106216 0 64 56 8 64 28 27]
+@end example
+@end deffn
+
+@deffn Procedure make-elf-image port word-size endianness os-abi abi-version @
+            type machine version entry phoff shoff flags ehsize @
+            phentsize phnum shentsize shnum shstrndx
+Contructs a new elf-image object. This procedure is normally not useful when
+reading ELF images. No checks are performed on the arguments.
+@end deffn
+
+@deffn Procedure elf-image? obj
+Returns @code{#t} if @var{obj} is an ELF image object.
+@end deffn
+
+@deffn Procedure elf-image-port image
+If @var{image} was created by @code{open-elf-image}, then this returns
+the port that the ELF header was read from.
+@end deffn
+
+@deffn Procedure elf-image-word-size image
+Returns an integer that represents the word size of @var{image}. The
+order and size of fields in the ELF format vary depending on the word
+size, but that is all hidden by this library.
+
+@vtable @code
+@item ELFCLASS32
+The image is a 32-bit ELF image.
+@item ELFCLASS64
+The image is a 64-bit ELF images.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-endianness image
+Returns an integer that represents the endianness of @var{image}. The
+byte order used in ELF images is the same that is used by the machine
+that the image is intended to run on.
+
+@vtable @code
+@item ELFDATA2LSB
+The image is in little endian format.
+@item ELFDATA2MSB
+The image is in big endian format.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-os-abi image
+The Operating System ABI indicates which operating system @var{image}
+was created for. The returned value might be one of the
+@code{ELFOSABI-*} constants.
+
+@vtable @code
+@item ELFOSABI-SYSV
+System V. An earlier version of ELF did not include the OS ABI field
+at all and this value is the default.
+@item ELFOSABI-HPUX
+@item ELFOSABI-NETBSD
+@item ELFOSABI-LINUX
+Linux. (This does not actually seem to be used by Linux.)
+@item ELFOSABI-SOLARIS
+@item ELFOSABI-AIX
+@item ELFOSABI-IRIX
+@item ELFOSABI-FREEBSD
+@item ELFOSABI-TRU64
+@item ELFOSABI-MODESTO
+@item ELFOSABI-OPENBSD
+@item ELFOSABI-OPENVMS
+@item ELFOSABI-NSK
+@item ELFOSABI-AROS
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-abi-version image
+The version number of the Operating System ABI.
+@end deffn
+
+@deffn Procedure elf-image-type image
+The type of the image. This might be one of the @code{ET-*} constants.
+
+@vtable @code
+@item ET-NONE
+No type was specified.
+@item ET-REL
+Relocatable object file.
+@item ET-EXEC
+Executable object file.
+@item ET-DYN
+Shared object file.
+@item ET-CORE
+Core dump.
+@item ET-LOOS
+Start of the environment-specific range.
+@item ET-HIOS
+End of the environment-specific range.
+@item ET-LOPROC
+Start of the processor-specific range.
+@item ET-HIPROC
+End of the processor-specific range.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-machine image
+Most ELF images contain executable code. This field specifies which
+machine type (CPU architecture) is needed to run the code.
+
+@vtable @code
+@item EM-NONE
+No machine type was given.
+@item EM-M32
+@item EM-SPARC
+@item EM-386
+The Intel 80386 and all its extensions. The 64-bit extensions use
+@code{EM-X86-64} instead.
+@item EM-68K
+@item EM-88K
+@item EM-860
+@item EM-MIPS
+@item EM-MIPS-RS3-LE
+@item EM-PARISC
+@item EM-SPARC32PLUS
+@item EM-PPC
+@item EM-PPC64
+@item EM-S390
+@item EM-ARM
+@item EM-SPARCV9
+@item EM-IA-64
+@item EM-68HC12
+@item EM-X86-64
+The AMD x86-64 architecture.
+@item EM-68HC11
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-version image
+The ELF format version used. There is only one valid value for this
+field, @code{EV-CURRENT}.
+
+@vtable @code
+@item EV-CURRENT
+The current ELF version.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-image-entry image
+The program entry point. When an operating system has loaded an ELF
+image (by mapping the segments into virtual memory) it needs to know
+which address contains the first instruction of the program.
+@end deffn
+
+@deffn Procedure elf-image-phoff image
+The port position at which the first segment can be found. The name is
+short for ``program header offset''.
+@end deffn
+
+@deffn Procedure elf-image-shoff image
+The port position at which the first section header can be found.
+@end deffn
+
+@deffn Procedure elf-image-flags image
+This field can contain processor-specific flags.
+@end deffn
+
+@deffn Procedure elf-image-ehsize image
+The size of the ELF header in bytes.
+@end deffn
+
+@deffn Procedure elf-image-phentsize image
+The size of a segment header in bytes.
+@end deffn
+
+@deffn Procedure elf-image-phnum image
+The number of segment headers contained in the ELF image.
+@end deffn
+
+@deffn Procedure elf-image-shentsize image
+The size of a section header in bytes.
+@end deffn
+
+@deffn Procedure elf-image-shnum image
+The number of section headers contained in the ELF image.
+@end deffn
+
+@deffn Procedure elf-image-shstrndx image
+This is an index into the section headers table. It indicates which of
+the section headers contains the names of all the section headers.
+
+@vtable @code
+@item SHN-UNDEF
+This is used when there is no reference to any section.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-machine-names
+This procedure returns an alist that contains the names of all the
+exported @code{EM-*} constants.
+@end deffn
+
+@deffn Procedure make-elf-section name type flags addr offset size @
+                                  link info addralign entsize
+Constructs a new elf-section object. These objects represent section
+headers and are used to refer to the contents of the file. This
+procedure is normally not useful when reading ELF images. No checks
+are performed on the arguments.
+@end deffn
+
+@deffn Procedure elf-section? obj
+Returns @code{#t} if @var{obj} is an ELF section object.
+@end deffn
+
+@deffn Procedure elf-section-name section
+Gives the name of @var{section} as an index into the section name
+table, which contains @code{#\nul} terminated strings. The section
+name table is located by using @code{elf-image-shstrndx}.
+@end deffn
+
+@deffn Procedure elf-section-type section
+An integer representing the type of @var{section}.
+
+@vtable @code
+@item SHT-NULL
+The section header is unused.
+@item SHT-PROGBITS
+The section contains executable code.
+@item SHT-SYMTAB
+The section contains a symbol table.
+@item SHT-STRTAB
+The section contains a string table.
+@item SHT-RELA
+@item SHT-HASH
+@item SHT-DYNAMIC
+@item SHT-NOTE
+@item SHT-NOBITS
+@item SHT-REL
+@item SHT-SHLIB
+@item SHT-DYNSYM
+The section contains a symbol table with only the symbols needed for
+dynamic linking.
+@item SHT-LOOS
+Start of the environment-specific range.
+@item SHT-HIOS
+End of the environment-specific range.
+@item SHT-LOPROC
+Start of the processor-specific range.
+@item SHT-HIPROC
+End of the processor-specific range.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-section-flags section
+An integer representing a bitmask of flags for @var{section}.
+
+@vtable @code
+@item SHF-WRITE
+The section data will be writable when the program is running.
+@item SHF-ALLOC
+The section data will be mapped into memory when the program is
+running.
+@item SHF-EXECINSTR
+The section data contains executable instructions.
+@item SHF-MASKOS
+The bitmask for environment-specific flags.
+@item SHF-MASKPROC
+The bitmask for processor-specific flags.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-section-addr section
+If @var{section} is mapped into memory when the program is running
+this field contains the address at which it will be mapped.
+@end deffn
+
+@deffn Procedure elf-section-offset section
+The port position at which the data of @var{section} can be found.
+@end deffn
+
+@deffn Procedure elf-section-size section
+The length of the data of @var{section}. If the section type is not
+@code{SHT-NULL} then this indicates the size of the segment in the
+image file.
+@end deffn
+
+@deffn Procedure elf-section-link section
+This may contain a reference to another section.
+@end deffn
+
+@deffn Procedure elf-section-info section
+This may contain extra information, depending on the type of
+@var{section}.
+@end deffn
+
+@deffn Procedure elf-section-addralign section
+This specifies the alignment requirements of the data in
+@var{section}.
+@end deffn
+
+@deffn Procedure elf-section-entsize section
+If @var{section} contains fixed-size entries then this is used to
+specify the size of those entries.
+@end deffn
+
+
+@deffn Procedure make-elf-segment type flags offset vaddr paddr filesz memsz align
+Constructs a new elf-segment object. These objects represent program
+headers and are used to refer to the contents of the file. This
+procedure is normally not useful when reading ELF images. No checks
+are performed on the arguments.
+@end deffn
+
+@deffn Procedure elf-segment? obj
+Returns @code{#t} if @var{obj} is an ELF segment object.
+@end deffn
+
+@deffn Procedure elf-segment-type segment
+An integer representing the type of the segment.
+
+@vtable @code
+@item PT-NULL
+This segment is unused.
+@item PT-LOAD
+This segment should be mapped into memory when loading the executable.
+@item PT-DYNAMIC
+@item PT-INTERP
+This segment contains the name of a program that should be invoked to
+interpret the binary. This is most commonly the system's dynamic
+linker/loader.
+@item PT-NOTE
+@item PT-PHDR
+@item PT-LOPROC
+Start of the processor-specific range.
+@item PT-HIPROC
+End of the processor-specific range.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-segment-flags segment
+An integer representing a bitmask of flags for @var{segment}.
+
+@vtable @code
+@item PF-X
+This segment should be mapped as executable.
+@item PF-W
+This segment should be mapped as writable.
+@item PF-R
+This segment should be mapped as readable.
+@item PF-MASKOS
+The bitmask for environment-specific flags.
+@item PF-MASKPROC
+The bitmask for processor-specific flags.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-segment-offset segment
+The port position for the start of @var{segment}.
+@end deffn
+
+@deffn Procedure elf-segment-vaddr segment
+The virtual address at which @var{segment} will be mapped.
+@end deffn
+
+@deffn Procedure elf-segment-paddr segment
+The physical address at which @var{segment} will be mapped, if it is
+relevant to the operating system loading the executable. Normally this
+is just the same as the virtual address.
+@end deffn
+
+@deffn Procedure elf-segment-filesz segment
+The size of @var{segment} in the file.
+@end deffn
+
+@deffn Procedure elf-segment-memsz segment
+The size of @var{segment} in the program memory. This can be larger
+than filesz when the program uses uninitialized data (bss).
+@end deffn
+
+@deffn Procedure elf-segment-align segment
+The alignment requirements of @var{segment}.
+@end deffn
+
+
+@deffn Procedure make-elf-symbol name binding type other shndx value size
+Contructs a new elf-symbol object. This procedure is normally not
+useful when reading ELF images. No checks are performed on the
+arguments.
+@end deffn
+
+@deffn Procedure elf-symbol? obj
+Returns @code{#t} if @var{obj} is an ELF symbol object.
+@end deffn
+
+@deffn Procedure elf-symbol-name symbol
+The name of @var{symbol}. This is given as an index into a string
+table. The string table is located in one of the sections of the
+image. Use @code{elf-section-link} on the elf-section object for the
+symbol table for find it. Normally you will not need to read the name
+yourself, if you use @code{elf-image-symbols} to read the symbol
+table.
+@end deffn
+
+@deffn Procedure elf-symbol-other symbol
+This field is reserved and should be zero.
+@end deffn
+
+@deffn Procedure elf-symbol-shndx symbol
+The index of the section that is associated with @var{symbol}. This
+can also be one of the special section index constants, @code{SHN-*}.
+
+@vtable @code
+@item SHN-ABS
+The symbol references an absolute address.
+@item SHN-COMMON
+The symbol references an address in the uninitialized data segment
+(bss).
+@end vtable
+@end deffn
+
+@deffn Procedure elf-symbol-value symbol
+A value or address associated with @var{symbol}. For a symbol that
+refers to a function, this is the address of the function.
+@end deffn
+
+@deffn Procedure elf-symbol-size symbol
+The size of the data @var{symbol} refers to.
+@end deffn
+
+@deffn Procedure elf-symbol-binding symbol
+An integer representing the symbol binding semantics of @var{symbol}.
+
+@vtable @code
+@item STB-LOCAL
+The symbol is local to the object file it is located in.
+@item STB-GLOBAL
+The symbol can be seen by all object files.
+@item STB-WEAK
+The symbol can be seen by all object files, but may be overridden.
+@item STB-LOOS
+Start of the environment-specific range.
+@item STB-HIOS
+End of the environment-specific range.
+@item STB-LOPROC
+Start of the processor-specific range.
+@item STB-HIPROC
+End of the processor-specific range.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-symbol-type symbol
+An integer representing the type of object @var{symbol} refers to.
+
+@vtable @code
+@item STT-NOTYPE
+No particular type.
+@item STT-OBJECT
+A variable, array or some other data object.
+@item STT-FUNC
+A function or some other executable code.
+@item STT-SECTION
+A section (like the .text section).
+@item STT-FILE
+A source code file name associated with the image.
+@item STT-LOOS
+Start of the environment-specific range.
+@item STT-HIOS
+End of the environment-specific range.
+@item STT-LOPROC
+Start of the processor-specific range.
+@item STT-HIPROC
+End of the processor-specific range.
+@end vtable
+@end deffn
+
+@deffn Procedure elf-symbol-info symbol
+This is a combination of the binding and type fields of @var{symbol}.
+It is used in the binary encoding of symbols, but is otherwise not
+interesting on its own.
+@end deffn
+
+These are helpers for parsing ELF binaries:
+
+@deffn Procedure elf-image-section-by-name image name
+Searches @var{image} for the section header named @var{name}. Returns
+the matching elf-section object, or @code{#f} if there is no such
+section.
+
+@example
+(import (weinholt binfmt elf))
+(let ((elf (open-elf-image "/bin/ls")))
+  (elf-image-section-by-name elf ".text"))
+@result{} #[elf-section 132 1 6 4203856 9552 65240 0 0 16 0]
+@end example
+@end deffn
+
+@deffn Procedure elf-image-sections image
+Returns all the section headers of @var{image} as an alist mapping
+names to elf-section objects.
+
+@example
+(let ((elf (open-elf-image "/bin/ls")))
+  (map car (elf-image-sections elf)))
+@result{}
+("" ".interp" ".note.ABI-tag" ".note.gnu.build-id" ".hash"
+ ".gnu.hash" ".dynsym" ".dynstr" ".gnu.version"
+ ".gnu.version_r" ".rela.dyn" ".rela.plt" ".init" ".plt"
+ ".text" ".fini" ".rodata" ".eh_frame_hdr" ".eh_frame"
+ ".ctors" ".dtors" ".jcr" ".dynamic" ".got" ".got.plt"
+ ".data" ".bss" ".shstrtab")
+@end example
+@end deffn
+
+@deffn Procedure elf-image-symbols image
+Locates and parses the symbol table of @var{image}. The symbol table
+contains information about the locations of functions, data structures
+and other things. The return value is a vector of all the symbols,
+represented as pairs where the car is the name of the symbol and the
+cdr is an elf-symbol object.
+
+Returns @code{#f} if @var{image} has no symbol table. Most executables
+are ``stripped'' of their symbol table to save space and to make
+debugging more difficult.
+
+@example
+(let ((elf (open-elf-image "/usr/lib/debug/lib/libc-2.11.2.so")))
+  (assoc "memcpy" (vector->list (elf-image-symbols elf))))
+@result{} ("memcpy" . #[elf-symbol 78278 18 0 12 522064 1125])
+@end example
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial release.
+@end itemize
