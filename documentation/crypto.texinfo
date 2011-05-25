@@ -35,6 +35,7 @@ or the FDA and quite likely aren't allowed for government work.
 * crypto des::            Data Encryption Standard (DES, 3DES)
 * crypto dh::             Diffie-Hellman key exchange
 * crypto dsa::            Digital Signature Algorithm (DSA)
+* crypto ec::             Elliptic Curve Cryptography
 * crypto entropy::        Entropy and randomness
 * crypto md5::            Message-Digest algorithm 5 (MD5)
 * crypto openpgp::        OpenPGP signature verification
@@ -674,6 +675,130 @@ Version history:
 @code{(1 0)} -- Initial version.
 @end itemize
 
+@c ======================================================================
+@node crypto ec
+@subsection Elliptic Curve Cryptography
+The @code{(weinholt crypto ec)} provides algorithms and definitions
+for working with elliptic curves.
+
+Only curves over prime finite fields are currently supported. Points
+are either @code{+inf.0} (the point at infinity) or a pair of x and y
+coordinates.
+
+Some standardized curves are exported:
+
+@vtable @code
+@item secp256r1
+This curve is equivalent to a 3072-bit RSA modulus.
+@item nistp256
+Curve P-256. This is the same curve as above.
+@item secp384r1
+This curve is equivalent to a 7680-bit RSA modulus.
+@item nistp384
+Curve P-384. This is the same curve as above.
+@item secp521r1
+This curve is equivalent to a 15360-bit RSA modulus. The ``521'' is
+not a typo.
+@item nistp521
+Curve P-521. This is the same curve as above.
+@end vtable
+
+@deffn Procedure make-elliptic-prime-curve p a b G n h
+Constructs a new elliptic-curve object given the domain parameters of
+a curve:
+
+@math{y^2 \equiv x^3 + ax + b} (mod @math{p}).
+
+Normally one will be working with pre-defined curves, so this
+constructor can be safely ignored. The curve definition will include
+all these parameters.
+@end deffn
+
+@deffn Procedure elliptic-prime-curve? obj
+Returns @code{#t} if @var{obj} is an elliptic prime curve.
+@end deffn
+
+The accessors can be safely ignored unless you're interested in the
+curves themselves.
+
+@deffn Procedure elliptic-curve-a elliptic-curve
+This is one of the parameters that defines the curve: an element in
+the field.
+@end deffn
+
+@deffn Procedure elliptic-curve-b elliptic-curve
+This is one of the parameters that defines the curve: another element
+in the field.
+@end deffn
+
+@deffn Procedure elliptic-curve-G elliptic-curve
+This is one of the parameters that defines the curve: the base point,
+i.e.@: an actual point on the curve.
+@end deffn
+
+@deffn Procedure elliptic-curve-n elliptic-curve
+This is one of the parameters that defines the curve: a prime that is
+the order of G (the base point).
+@end deffn
+
+@deffn Procedure elliptic-curve-h elliptic-curve
+This is one of the parameters that defines the curve: the cofactor.
+@end deffn
+
+@deffn Procedure elliptic-curve-prime-p elliptic-prime-curve
+This is one of the parameters that defines the curve: the integer that
+defines the prime finite field.
+@end deffn
+
+@deffn Procedure ec+ P Q elliptic-curve
+This adds the points @var{P} and @var{Q}, which must be points on
+@var{elliptic-curve}.
+@end deffn
+
+@deffn Procedure ec- P [Q] elliptic-curve
+This subtracts @var{Q} from @var{P}, both of which must be points on
+@var{elliptic-curve}. If @var{Q} is omitted it returns the complement
+of @var{P}.
+@end deffn
+
+@deffn Procedure ec* multiplier P elliptic-curve
+This multiplies @var{P} by @var{multiplier}. @var{P} must be a point
+on @var{elliptic-curve} and @var{multiplier} must be a non-negative
+integer.
+
+This operation is the elliptic curve equivalence of @code{expt-mod}.
+@end deffn
+
+@deffn Procedure bytevector->elliptic-point bytevector elliptic-curve
+Converts @var{bytevector} to a point on @var{elliptic-curve}. When
+points are sent over the network or stored in files they are first
+converted to bytevectors.
+@end deffn
+
+@deffn Procedure integer->elliptic-point integer elliptic-curve
+Performs the same conversion as @code{bytevector->elliptic-point}, but
+first converts @var{integer} to a bytevector.
+@end deffn
+
+@deffn Procedure ->elliptic-point x elliptic-curve
+A generic procedure that accepts as input an @var{x} that is either
+already a point, a bytevector representing a point, or an integer
+representing a point.
+@end deffn
+
+@deffn Procedure elliptic-point->bytevector point elliptic-curve
+Converts @var{point} to its bytevector representation. This
+representation is sometimes hashed, e.g.@: in SSH public keys, so the
+canonical representation is used for compatibility with other
+software.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
 
 @c ======================================================================
 @node crypto entropy
