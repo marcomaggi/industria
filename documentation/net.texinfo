@@ -568,10 +568,11 @@ The @code{(weinholt net tcp)} provides a simple TCP client. This
 library needs implementation-specific code, so the author is not eager
 to provide more than the bare minimum.
 
-This library should work with Ikarus Scheme, GNU Guile, Mosh Scheme,
-Petite Chez Scheme (as long as the nc command installed), Vicare
-Scheme, and Ypsilon Scheme. Once upon a time it also worked with PLT
-Scheme, but it has not been tested with Racket.
+This library should work with Ikarus Scheme, GNU Guile, Larceny (not
+tested with Petit Larceny and Common Larceny), Mosh Scheme, Petite
+Chez Scheme (as long as the nc command is installed), Vicare Scheme,
+and Ypsilon Scheme. Once upon a time it also worked with PLT Scheme,
+but it has not been tested with Racket.
 
 @deffn Procedure tcp-connect hostname portname
 Initiates a TCP connection to the given @var{hostname} and
