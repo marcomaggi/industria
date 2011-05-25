@@ -179,24 +179,25 @@
 (define (disassemble-file filename arch color)
   (cond ((is-elf-image? filename)
          (display "ELF image detected. Looking for .text section...\n")
-         (let ((image (open-elf-image filename)))
-           (cond ((elf-image-section-by-name image ".text") =>
-                  (lambda (text)
-                    (let ((get-instruction (get-elf-disassembler
-                                            (elf-image-machine image)
-                                            (if (= (elf-image-endianness image) 1)
-                                                (endianness little) (endianness big))))
-                          (symbols (parse-elf-symbols image)))
-                      (set-port-position! (elf-image-port image)
-                                          (elf-section-offset text))
-                      (disassemble (elf-image-port image)
-                                   get-instruction color
-                                   (+ (elf-section-offset text)
-                                      (elf-section-size text))
-                                   (elf-section-addr text)
-                                   symbols))))
+         (let* ((image (open-elf-image filename))
+                (text (elf-image-section-by-name image ".text")))
+           (cond ((and text (= (elf-section-type text) SHT-PROGBITS))
+                  (let ((get-instruction (get-elf-disassembler
+                                          (elf-image-machine image)
+                                          (if (= (elf-image-endianness image) 1)
+                                              (endianness little) (endianness big))))
+                        (symbols (parse-elf-symbols image)))
+                    (set-port-position! (elf-image-port image)
+                                        (elf-section-offset text))
+                    (disassemble (elf-image-port image)
+                                 get-instruction color
+                                 (+ (elf-section-offset text)
+                                    (elf-section-size text))
+                                 (elf-section-addr text)
+                                 symbols)))
                  (else
-                  (display "This ELF image has no .text section. No disassembly for you.\n")))))
+                  (display "This ELF image has no .text section with executable code.\n")
+                  (display "No disassembly for you.\n")))))
         (else
          (disassemble (open-file-input-port filename)
                       (cdr (assoc arch archs))
