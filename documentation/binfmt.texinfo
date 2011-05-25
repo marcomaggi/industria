@@ -254,8 +254,8 @@ This is used when there is no reference to any section.
 @end vtable
 @end deffn
 
-@deffn Procedure elf-machine-names
-This procedure returns an alist that contains the names of all the
+@deffn Constant elf-machine-names
+This is an alist that contains human-readable names for all the
 exported @code{EM-*} constants.
 @end deffn
 
