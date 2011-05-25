@@ -36,6 +36,7 @@ or the FDA and quite likely aren't allowed for government work.
 * crypto dh::             Diffie-Hellman key exchange
 * crypto dsa::            Digital Signature Algorithm (DSA)
 * crypto ec::             Elliptic Curve Cryptography
+* crypto ec dsa::         Elliptic Curve Digital Signature Algorithm (ECDSA)
 * crypto entropy::        Entropy and randomness
 * crypto md5::            Message-Digest algorithm 5 (MD5)
 * crypto openpgp::        OpenPGP signature verification
@@ -791,6 +792,139 @@ Converts @var{point} to its bytevector representation. This
 representation is sometimes hashed, e.g.@: in SSH public keys, so the
 canonical representation is used for compatibility with other
 software.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
+
+@c ======================================================================
+@node crypto ec dsa
+@subsection Elliptic Curve Digital Signature Algorithm (ECDSA)
+The @code{(weinholt crypto ec dsa)} library builds on the
+@code{(weinholt crypto ec)} library and provides an interface similar
+to @code{(weinholt crypto dsa)}. The keys and the operations are
+defined to work with elliptic curves instead of modular
+exponentiation.
+
+@deffn Procedure make-ecdsa-public-key elliptic-curve Q
+Constructs an ECDSA public key object. @var{Q} is a point on
+@var{elliptic-curve}. @var{Q} is only checked to be on the curve if it
+is in bytevector format.
+@end deffn
+
+@deffn Procedure ecdsa-public-key? obj
+Returns @code{#t} if @var{obj} is an ECDSA public key object.
+@end deffn
+
+@deffn Procedure ecdsa-public-key-curve ecdsa-public-key
+Returns the curve that @var{ecdsa-public-key} uses.
+@end deffn
+
+@deffn Procedure ecdsa-public-key-Q ecdsa-public-key
+The point on the curve that defines @var{ecdsa-public-key}.
+@end deffn
+
+@deffn Procedure ecdsa-public-key-length ecdsa-public-key
+The bitwise length of the ECDSA public key @var{ecdsa-public-key}.
+@end deffn
+
+
+@deffn Procedure make-ecdsa-private-key elliptic-curve [d Q]
+Constructs an ECDSA private key object. @var{d} is a secret
+multiplier, which gives a public point @var{Q} on
+@var{elliptic-curve}.
+
+If @var{Q} is omitted it is recomputed based on @var{d} and the curve.
+If @var{d} is omitted a random multiplier is chosen. Please note the
+warning about entropy at the start of this section. @xref{crypto}.
+@end deffn
+
+@deffn Procedure ecdsa-private-key? obj
+Returns @code{#t} if @var{obj} is an ECDSA private key object.
+@end deffn
+
+@deffn Procedure ecdsa-private-key-d ecdsa-private-key
+The secret multiplier of @var{ecdsa-private-key}.
+@end deffn
+
+@deffn Procedure ecdsa-private-key-Q ecdsa-private-key
+The public point of @var{ecdsa-private-key}.
+@end deffn
+
+
+@deffn Procedure ecdsa-private->public ecdsa-private-key
+Strips @var{ecdsa-private-key} of the secret multiplier and returns an
+ECDSA public key object.
+@end deffn
+
+
+@deffn Procedure ecdsa-private-key-from-bytevector bytevector
+Parses @var{bytevector} as an ECDSA private key encoded in RFC 5915
+format. A curve identifier is encoded along with the key. Currently
+only the curves secp256r1, secp384r1 and secp521r1 are supported.
+@end deffn
+
+
+@deffn Procedure ecdsa-verify-signature hash ecdsa-public-key r s
+Returns @code{#t} if the signature (@var{r},@var{s}) was made by the
+private key corresponding to @var{ecdsa-public-key}. The bytevector
+@var{hash} is the message digest that was signed.
+@end deffn
+
+@deffn Procedure ecdsa-create-signature hash ecdsa-private-key
+Creates a signature of the bytevector @var{hash} using
+@var{ecdsa-private-key}. Returns the values r and s.
+@end deffn
+
+ECDSA keys are normally defined to work together with some particular
+message digest algorithm. RFC 5656 defines ECDSA with SHA-2 and this
+library provides the record types @code{ecdsa-sha-2-public-key} and
+@code{ecdsa-sha-2-private-key} so that keys defined to work with SHA-2
+can be distinguished from other keys. Keys of this type are still
+usable for operations that expect the normal ECDSA key types.
+          
+@deffn Procedure make-ecdsa-sha-2-public-key elliptic-curve Q
+Performs the same function as @code{make-ecdsa-public-key}, but the
+returned key is marked to be used with SHA-2.
+@end deffn
+
+@deffn Procedure ecdsa-sha-2-public-key? obj
+Returns @code{#t} if @var{obj} is an ECDSA public key marked to be
+used with SHA-2.
+@end deffn
+
+
+@deffn Procedure make-ecdsa-sha-2-private-key
+Performs the same function as @code{make-ecdsa-private-key}, but the
+returned key is marked to be used with SHA-2.
+@end deffn
+
+@deffn Procedure ecdsa-sha-2-private-key?
+Returns @code{#t} if @var{obj} is an ECDSA private key marked to be
+used with SHA-2.
+@end deffn
+
+@deffn Procedure ecdsa-sha-2-verify-signature message ecdsa-sha2-public-key r s
+The bytevector @var{message} is hashed with the appropriate message
+digest algorithm (see RFC 5656) and the signature (@var{r},@var{s}) is
+then verified. Returns @code{#t} if the signature was made with the
+private key corresponding to @var{ecdsa-sha2-public-key}.
+@end deffn
+
+@deffn Procedure ecdsa-sha-2-create-signature message ecdsa-sha2-private-key
+The bytevector @var{message} is hashed with the appropriate message
+digest algorithm (see RFC 5656) and a signature is created using
+@var{ecdsa-sha2-private-key}. Returns the values r and s.
+@end deffn
+
+@deffn Procedure ecdsa-sha-2-private-key-from-bytevector bytevector
+Performs the same function as
+@code{ecdsa-private-key-from-bytevector}, except the returned value is
+marked to be used with SHA-2.
 @end deffn
 
 @noindent
