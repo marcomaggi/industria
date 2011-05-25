@@ -17,7 +17,7 @@
 
 ;; Routines for reading the Executable and Linkable Format (ELF)
 
-(library (weinholt binfmt elf (1 0 20110523))
+(library (weinholt binfmt elf (1 0 20110525))
   (export is-elf-image?
           open-elf-image
 
@@ -406,9 +406,10 @@
   (define STT-HIPROC 15)
 
   (define (elf-image-symbols image)
-    (let ((p (elf-image-port image))
-          (strtab* (elf-image-section-by-name image ".strtab"))
-          (symtab* (elf-image-section-by-name image ".symtab")))
+    (let* ((p (elf-image-port image))
+           (symtab* (elf-image-section-by-name image ".symtab"))
+           (strtab* (and symtab*
+                         (get-elf-section image (elf-section-link symtab*)))))
       (and strtab* symtab*
            (let ((strtab (get-elf-section-data image strtab*)))
              (set-port-position! p (elf-section-offset symtab*))
