@@ -45,6 +45,7 @@
         '(weinholt net ssh kex-dh-gex)
         '(weinholt net ssh kexdh)
         '(weinholt net ssh private)
+        '(weinholt net tls)
         '(weinholt struct pack-aux)))
 
 (define *released-libraries*
@@ -84,21 +85,21 @@
         '(weinholt net irc fish)
         '(weinholt net irc)
         '(weinholt net otr)
-        ;;'(weinholt net ssh)
+        '(weinholt net ssh)
         '(weinholt net tcp)
         '(weinholt net tls simple)
         '(weinholt net tls)
         '(weinholt struct der)
         '(weinholt struct pack)
         '(weinholt text base64)
-        ;;'(weinholt text internet)
+        '(weinholt text internet)
         ;;'(weinholt text punycode)
         '(weinholt text random-art)))
 
 (define *implementations* '(chezscheme
                             ikarus
-                            ;; guile
-                            ;; larcency
+                            guile
+                            larceny
                             mosh
                             mzscheme
                             vicare
@@ -340,7 +341,7 @@
      (lambda (doc-name)
        (when (library-name? doc-name)
          (unless (member (cons 'weinholt doc-name) libs)
-           (format #t "Extra documentation for unreleased ~S~.%"
+           (format #t "Extra documentation for unreleased ~S.~%"
                    (cons 'weinholt doc-name)))))
      docs)))
 
