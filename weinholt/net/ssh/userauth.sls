@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -21,30 +21,51 @@
 ;; RFC4256 Generic Message Exchange Authentication for the Secure
 ;; Shell Protocol (SSH)
 
-(library (weinholt net ssh userauth (1 0 20101107))
+(library (weinholt net ssh userauth (1 0 20110527))
   (export register-userauth
           register-userauth-public-key
           register-userauth-password
           deregister-userauth
 
-          make-userauth-failure userauth-failure?
-          make-userauth-success userauth-success?
-          make-userauth-banner userauth-banner?
+          ;; generic
 
-          make-userauth-request
-          userauth-request?
-          userauth-request-username
-          userauth-request-service
+          make-userauth-request userauth-request?
+          userauth-request-username userauth-request-service
           userauth-request-method
+
+          make-userauth-failure userauth-failure?
+          userauth-failure-can-continue userauth-failure-partial?
+
+          make-userauth-success userauth-success?
+
+          make-userauth-banner userauth-banner?
+          userauth-banner-message userauth-banner-language
+
+          ;; password
 
           make-userauth-request/password userauth-request/password?
           userauth-request/password-value
-          
+
+          make-userauth-request/password-changereq
+          userauth-request/password-changereq?
+          userauth-request/password-changereq-prompt
+          userauth-request/password-changereq-language
+
+          make-userauth-request/password-change userauth-request/password-change?
+          userauth-request/password-change-old userauth-request/password-change-new
+
+          ;; public key
+
           make-userauth-request/public-key-query userauth-request/public-key-query?
+          userauth-request/public-key-query-algorithm
+          userauth-request/public-key-query-key
+
           make-userauth-request/public-key-ok userauth-request/public-key-ok?
+          userauth-request/public-key-ok-algorithm
+          userauth-request/public-key-ok-key
+
           make-userauth-request/public-key userauth-request/public-key?
-          sign-userauth-request/public-key
-          )
+          sign-userauth-request/public-key)
   (import (rnrs)
           (weinholt crypto dsa)
           (weinholt crypto rsa)
@@ -83,7 +104,7 @@
     (do ((type 50 (+ type 1)))
         ((= type 80))
       (reg type #f #f)))
-  
+
   (define (public-key-algorithm who pubkey)
     (cond ((rsa-public-key? pubkey) "ssh-rsa")
           ((dsa-public-key? pubkey) "ssh-dss")
@@ -273,7 +294,7 @@
     (put-u8 p (ssh-packet-type m))
     (put-bvstring p (userauth-request/public-key-ok-algorithm m))
     (put-bvstring p (userauth-request/public-key-ok-key m)))
-  
+
 ;;; User authentication failure
 
   (define-record-type userauth-failure
