@@ -111,26 +111,29 @@
             (kexinit-server-host-key-algorithms
              (ssh-conn-peer-kexinit conn))))
 
-(define (get-auth-result conn)
-  (let ((x (get-ssh conn)))
-    (cond ((userauth-failure? x)
-           (print "You may try these authentication methods: "
-                  (userauth-failure-can-continue x)))
-          ((userauth-success? x)
-           (print "You've succesfully authenticated.")
-           (let ((r (ssh-conn-registrar conn)))
-             (deregister-userauth r)
-             (print "You now have access to the SSH connection protocol.")
-             (register-connection r)))
-          (else
-           (error 'print-auth-result "Unexpected message" x)))))
+
 
 (define (main hostname portname)
   (define username #f)
   (define sessions '())
+  (define authenticated #f)
   (define (get-send-id rec-id)
     (let ((s (assv rec-id sessions)))
       (and s (vector-ref (cdr s) 0))))
+  (define (get-auth-result conn)
+    (let ((x (get-ssh conn)))
+      (cond ((userauth-failure? x)
+             (print "You may try these authentication methods: "
+                    (userauth-failure-can-continue x)))
+            ((userauth-success? x)
+             (print "You've succesfully authenticated.")
+             (let ((r (ssh-conn-registrar conn)))
+               (deregister-userauth r)
+               (print "You now have access to the SSH connection protocol.")
+               (set! authenticated #t)
+               (register-connection r)))
+            (else
+             (error 'print-auth-result "Unexpected message" x)))))
   (print "Industria SSH demo client.\n")
   (let ((conn (open-connection hostname portname)))
     (print-key hostname (ssh-conn-host-key conn))
@@ -162,7 +165,7 @@
            (print "ssh-debugging set to #b" (number->string #b111 2)))
 
           ((g)
-           (if username
+           (if authenticated
                (getkeys hostname conn)
                (scan-keys hostname portname)))
 
