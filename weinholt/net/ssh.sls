@@ -28,7 +28,7 @@
 
 ;; TODO: fast path for channel-data
 
-(library (weinholt net ssh (1 0 20110409))
+(library (weinholt net ssh (1 0 20110527))
   (export
     make-ssh-client make-ssh-server
     ssh-conn-peer-identification
@@ -41,6 +41,7 @@
     ssh-conn-registrar
     ssh-error
     put-ssh get-ssh close-ssh
+    flush-ssh-output
     ;; Client and server identification
     (rename (proto-version identification-protocol-version)
             (software-version identification-software-version)
