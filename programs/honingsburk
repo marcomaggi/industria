@@ -191,11 +191,11 @@
                (put-ssh conn (make-channel-failure ID))
                (lp))
               ((channel-request/pty-req? x)
+               (set! *pty* (append
+                            (bytevector->terminal-modes
+                             (channel-request/pty-req-modes x))
+                            (default-terminal-modes)))
                (when (channel-request-want-reply? x)
-                 (set! *pty* (append
-                              (bytevector->terminal-modes
-                               (channel-request/pty-req-modes x))
-                              (default-terminal-modes)))
                  (put-ssh conn (make-channel-success ID)))
                (lp))
               ((channel-request? x)
