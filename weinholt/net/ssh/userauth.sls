@@ -46,10 +46,10 @@
           make-userauth-request/password userauth-request/password?
           userauth-request/password-value
 
-          make-userauth-request/password-changereq
-          userauth-request/password-changereq?
-          userauth-request/password-changereq-prompt
-          userauth-request/password-changereq-language
+          make-userauth-password-changereq
+          userauth-password-changereq?
+          userauth-password-changereq-prompt
+          userauth-password-changereq-language
 
           make-userauth-request/password-change userauth-request/password-change?
           userauth-request/password-change-old userauth-request/password-change-new
@@ -60,11 +60,13 @@
           userauth-request/public-key-query-algorithm
           userauth-request/public-key-query-key
 
-          make-userauth-request/public-key-ok userauth-request/public-key-ok?
-          userauth-request/public-key-ok-algorithm
-          userauth-request/public-key-ok-key
+          make-userauth-public-key-ok userauth-public-key-ok?
+          userauth-public-key-ok-algorithm
+          userauth-public-key-ok-key
 
           make-userauth-request/public-key userauth-request/public-key?
+          userauth-request/public-key-algorithm
+          userauth-request/public-key-key
           sign-userauth-request/public-key)
   (import (rnrs)
           (weinholt crypto dsa)
@@ -92,13 +94,13 @@
 
   (define (register-userauth-public-key reg)
     (reg SSH-MSG-USERAUTH-PK-OK
-         parse-userauth-request/public-key-ok
-         put-userauth-request/public-key-ok))
+         parse-userauth-public-key-ok
+         put-userauth-public-key-ok))
 
   (define (register-userauth-password reg)
     (reg SSH-MSG-USERAUTH-PASSWD-CHANGEREQ
-         parse-userauth-request/password-changereq
-         put-userauth-request/password-changereq))
+         parse-userauth-password-changereq
+         put-userauth-password-changereq))
 
   (define (deregister-userauth reg)
     (do ((type 50 (+ type 1)))
@@ -253,7 +255,7 @@
 
 ;;; Server requests a password change
 
-  (define-record-type userauth-request/password-changereq
+  (define-record-type userauth-password-changereq
     (parent ssh-packet)
     (fields prompt language)
     (protocol
@@ -261,19 +263,19 @@
        (lambda (prompt language)
          ((p SSH-MSG-USERAUTH-PASSWD-CHANGEREQ) prompt language)))))
 
-  (define (parse-userauth-request/password-changereq b)
+  (define (parse-userauth-password-changereq b)
     (let* ((prompt (read-string b))
            (language (read-string b)))
-      (make-userauth-request/password-changereq prompt language)))
+      (make-userauth-password-changereq prompt language)))
 
-  (define (put-userauth-request/password-changereq p m)
+  (define (put-userauth-password-changereq p m)
     (put-u8 p SSH-MSG-USERAUTH-PASSWD-CHANGEREQ)
-    (put-bvstring p (userauth-request/password-changereq-prompt m))
-    (put-bvstring p (userauth-request/password-changereq-language m)))
+    (put-bvstring p (userauth-password-changereq-prompt m))
+    (put-bvstring p (userauth-password-changereq-language m)))
 
 ;;; The server would accept a signature from the given key
 
-  (define-record-type userauth-request/public-key-ok
+  (define-record-type userauth-public-key-ok
     (parent ssh-packet)
     (fields algorithm key)
     (protocol
@@ -281,19 +283,19 @@
        (lambda (algorithm key)
          ((p SSH-MSG-USERAUTH-PK-OK) algorithm key)))))
 
-  (define (parse-userauth-request/public-key-ok b)
+  (define (parse-userauth-public-key-ok b)
     (let* ((algorithm (read-string b))
            (key (read-bytevector b)))
       (if (member algorithm '("ssh-rsa" "ssh-dss"))
-          (make-userauth-request/public-key-ok algorithm
-                                               (get-ssh-public-key
-                                                (open-bytevector-input-port key)))
-          (make-userauth-request/public-key-ok algorithm key))))
+          (make-userauth-public-key-ok algorithm
+                                       (get-ssh-public-key
+                                        (open-bytevector-input-port key)))
+          (make-userauth-public-key-ok algorithm key))))
 
-  (define (put-userauth-request/public-key-ok p m)
+  (define (put-userauth-public-key-ok p m)
     (put-u8 p (ssh-packet-type m))
-    (put-bvstring p (userauth-request/public-key-ok-algorithm m))
-    (put-bvstring p (userauth-request/public-key-ok-key m)))
+    (put-bvstring p (userauth-public-key-ok-algorithm m))
+    (put-bvstring p (userauth-public-key-ok-key m)))
 
 ;;; User authentication failure
 
