@@ -25,27 +25,29 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20110201))
+(library (weinholt net ssh connection (1 0 20110527))
   (export register-connection
-          register-tcpip-forward
 
           make-global-request global-request?
           global-request-type
           global-request-want-reply?
-          
+
           request-success? make-request-success
           request-failure? make-request-failure
-          
+
           channel-open?
           channel-open-type channel-open-sender
           channel-open-initial-window-size channel-open-maximum-packet-size
 
-          channel-open/direct-tcpip? make-channel-open/direct-tcpip 
-          channel-open/forwarded-tcpip? make-channel-open/forwarded-tcpip 
-          channel-open/session? make-channel-open/session 
-          channel-open/x11? make-channel-open/x11 
+          channel-open/direct-tcpip? make-channel-open/direct-tcpip
+          channel-open/forwarded-tcpip? make-channel-open/forwarded-tcpip
+          channel-open/session? make-channel-open/session
+          channel-open/x11? make-channel-open/x11
 
-          make-channel-open-failure
+          channel-open-failure? make-channel-open-failure
+          channel-open-failure-reason-code
+          channel-open-failure-description
+          channel-open-failure-language
 
           channel-packet?
           channel-packet-recipient
@@ -67,13 +69,25 @@
 
           channel-request? make-channel-request
           channel-request-type channel-request-want-reply?
-          
-          channel-request/exec? make-channel-request/exec
-          channel-request/exec-command
+
+          channel-request/break? make-channel-request/break
+          channel-request/break-length
 
           channel-request/env? make-channel-request/env
           channel-request/env-name
           channel-request/env-value
+
+          channel-request/exec? make-channel-request/exec
+          channel-request/exec-command
+
+          channel-request/exit-signal? make-channel-request/exit-signal
+          channel-request/exit-signal-name
+          channel-request/exit-signal-core-dumped?
+          channel-request/exit-signal-message
+          channel-request/exit-signal-language
+
+          channel-request/exit-status? make-channel-request/exit-status
+          channel-request/exit-status-value
 
           channel-request/pty-req? make-channel-request/pty-req
           channel-request/pty-req-term
@@ -82,11 +96,29 @@
           channel-request/pty-req-width
           channel-request/pty-req-height
           channel-request/pty-req-modes
-          
+
           channel-request/shell? make-channel-request/shell
-          
-          channel-request/window-change? make-channel-request/window-change ;FIXME
-          channel-request/x11-req? make-channel-request/x11-req ;FIXME
+
+          channel-request/signal make-channel-request/signal
+          channel-request/signal-name
+
+          channel-request/subsystem make-channel-request/subsystem
+          channel-request/subsystem-name
+
+          channel-request/window-change? make-channel-request/window-change
+          channel-request/window-change-columns
+          channel-request/window-change-rows
+          channel-request/window-change-width
+          channel-request/window-change-height
+
+          channel-request/x11-req? make-channel-request/x11-req
+          channel-request/x11-req-single-connection?
+          channel-request/x11-req-protocol
+          channel-request/x11-req-cookie
+          channel-request/x11-req-screen
+
+          channel-request/xon-xoff? make-channel-request/xon-xoff
+          channel-request/xon-xoff-client-can-do?
 
           channel-window-adjust? make-channel-window-adjust
           channel-window-adjust-amount
@@ -124,7 +156,7 @@
 
   (define (register-connection reg)
     (reg SSH-MSG-GLOBAL-REQUEST parse-global-request put-global-request)
-    ;;(reg SSH-MSG-REQUEST-SUCCESS parse-request-success put-request-success)
+    (reg SSH-MSG-REQUEST-SUCCESS parse-request-success put-request-success)
     (reg SSH-MSG-REQUEST-FAILURE parse-request-failure put-request-failure)
     (reg SSH-MSG-CHANNEL-OPEN parse-channel-open put-channel-open)
     (reg SSH-MSG-CHANNEL-OPEN-CONFIRMATION parse-channel-open-confirmation put-channel-open-confirmation)
@@ -138,12 +170,6 @@
     (reg SSH-MSG-CHANNEL-SUCCESS parse-channel-success put-channel-success)
     (reg SSH-MSG-CHANNEL-FAILURE parse-channel-failure put-channel-failure))
 
-  (define (register-tcpip-forward reg)
-    #f
-    #;
-    (reg SSH-MSG-REQUEST-SUCCESS parse-request-success/tcpip-forward
-         put-request-success/tcpip-forward))
-  
 ;;; Global requests
 
   (define-record-type global-request
@@ -169,7 +195,7 @@
      (lambda (p)
        (lambda (want-reply? address port)
          ((p "cancel-tcpip-forward" want-reply?) address port)))))
-  
+
   (define (parse-global-request b)
     (let* ((type (read-string b))
            (want-reply? (positive? (read-byte b))))
@@ -178,12 +204,12 @@
          (let* ((address (read-string b))
                 (port (read-uint32 b)))
            (make-global-request/tcpip-forward
-            type want-reply? address port)))
+            want-reply? address port)))
         ((string=? type "cancel-tcpip-forward")
          (let* ((address (read-string b))
                 (port (read-uint32 b)))
            (make-global-request/cancel-tcpip-forward
-            type want-reply? address port)))
+            want-reply? address port)))
         (else
          (make-global-request type want-reply?)))))
 
@@ -195,19 +221,22 @@
       (cond ((or (string=? type "tcpip-forward")
                  (string=? type "cancel-tcpip-forward"))
              (put-record p m #f '(string uint32))))))
-  
+
   (define-record-type request-success
     (parent ssh-packet)
-    (fields)
+    (fields data)
     (protocol
      (lambda (p)
-       (lambda ()
+       (lambda (data)
          ((p SSH-MSG-REQUEST-SUCCESS))))))
 
-  ;; parse
+  (define (parse-request-success b)
+    (make-channel-success (read-bytevector b)))
 
-  ;; put
-  
+  (define (put-request-success p m)
+    (put-u8 p SSH-MSG-REQUEST-SUCCESS)
+    (put-bytevector p (request-success-data m)))
+
   (define-record-type request-failure
     (parent ssh-packet)
     (fields)
@@ -215,14 +244,13 @@
      (lambda (p)
        (lambda ()
          ((p SSH-MSG-REQUEST-FAILURE))))))
-  
+
   (define (parse-request-failure b)
     (make-channel-success))
 
   (define (put-request-failure p m)
     (put-u8 p SSH-MSG-REQUEST-FAILURE))
 
-  
 ;;; Channel open
 
   (define-record-type channel-open
@@ -297,7 +325,7 @@
             ((string=? type "session"))
             ((string=? type "x11")
              (put-record p m #f '(string uint32))))))
-  
+
 ;;; Packets intended for a specific channel
 
   (define-record-type channel-packet
@@ -307,7 +335,7 @@
      (lambda (p)
        (lambda (type recipient)
          ((p type) recipient)))))
-  
+
 ;;; Channel open confirmation
 
   (define-record-type channel-open-confirmation
@@ -483,165 +511,140 @@
       (lambda (recipient . x)
         (apply (p recipient type #f) x))))
 
-  (define-record-type channel-request/break
-    (parent channel-request)
-    (fields length)
-    (protocol (cr-protocol "break")))
+  (define cr-types '())
 
-  (define-record-type channel-request/env
-    (parent channel-request)
-    (fields name value)
-    (protocol (cr-protocol "env")))
+  (define-syntax define-request-type
+    (lambda (x)
+      (define (symappend prefix name)
+        (datum->syntax name
+                       (string->symbol
+                        (string-append prefix (symbol->string (syntax->datum name))))))
+      (define (make-parser name fields types wr)
+        (with-syntax ((make (symappend "make-channel-request/" name))
+                      ((field ...) fields)
+                      ((type ...) types))
+          (if wr
+              #'(lambda (recipient want-reply? b)
+                  (get-record b (lambda (field ...)
+                                  (make recipient want-reply? field ...))
+                              '(type ...)))
+              #'(lambda (recipient _ b)
+                  (get-record b (lambda (field ...)
+                                  (make recipient field ...))
+                              '(type ...))))))
+      (syntax-case x (fields want-reply? has-want-reply)
+        ((_ name
+            (fields (boolean want-reply?) (type field) ...))
+         #`(define-request-type name
+            (fields (type field) ...)
+            (has-want-reply #t)
+            (protocol (cr-protocol #,(symbol->string (syntax->datum #'name))))))
+        ((_ name
+            (fields (type field) ...))
+         #`(define-request-type name
+            (fields (type field) ...)
+            (has-want-reply #f)
+            (protocol (cr-protocol/no-reply #,(symbol->string (syntax->datum #'name))))))
+        ((_ name
+            (fields (type field) ...)
+            (has-want-reply wr?)
+            (protocol prot))
+         (let ((wr (syntax->datum #'wr?)))
+           (with-syntax ((rec-name (symappend "channel-request/" #'name))
+                         (parser (make-parser #'name #'(field ...) #'(type ...) wr))
+                         (formatter #'(lambda (p m)
+                                        (put-record p m #f '(type ...)))))
+             #`(begin
+                 (define-record-type rec-name
+                   (parent channel-request)
+                   (fields field ...)
+                   (protocol prot))
+                 (define dummy
+                   (begin
+                     (set! cr-types (cons (list #,(symbol->string (syntax->datum #'name))
+                                                parser formatter)
+                                          cr-types))
+                     #f)))))))))
 
-  (define-record-type channel-request/exec
-    (parent channel-request)
-    (fields command)
-    (protocol (cr-protocol "exec")))
+  (define-request-type break
+    (fields (boolean want-reply?)
+            (uint32 length)))
 
-  (define-record-type channel-request/exit-signal
-    (parent channel-request)
-    (fields name core-dumped? message language)
-    (protocol (cr-protocol/no-reply "exit-signal")))
+  (define-request-type env
+    (fields (boolean want-reply?)
+            (string name)
+            (string value)))
 
-  (define-record-type channel-request/exit-status
-    (parent channel-request)
-    (fields value)
-    (protocol (cr-protocol/no-reply "exit-status")))
+  (define-request-type exec
+    (fields (boolean want-reply?)
+            (bytevector command)))
 
-  (define-record-type channel-request/pty-req
-    (parent channel-request)
-    (fields term columns rows width height modes)
-    (protocol (cr-protocol "pty-req")))
+  (define-request-type exit-signal
+    (fields (string name)
+            (boolean core-dumped?)
+            (string message)
+            (string language)))
 
-  (define-record-type channel-request/shell
-    (parent channel-request)
-    (fields)
-    (protocol (cr-protocol "shell")))
+  (define-request-type exit-status
+    (fields (uint32 value)))
 
-  (define-record-type channel-request/signal
-    (parent channel-request)
-    (fields name)
-    (protocol (cr-protocol/no-reply "signal")))
+  (define-request-type pty-req
+    (fields (boolean want-reply?)
+            (string term)
+            (uint32 columns)
+            (uint32 rows)
+            (uint32 width)
+            (uint32 height)
+            (bytevector modes)))
 
-  (define-record-type channel-request/subsystem
-    (parent channel-request)
-    (fields name)
-    (protocol (cr-protocol "subsystem")))
+  (define-request-type shell
+    (fields (boolean want-reply?)))
 
-  (define-record-type channel-request/window-change
-    (parent channel-request)
-    (fields columns rows width height)
-    (protocol (cr-protocol/no-reply "window-change")))
+  (define-request-type signal
+    (fields (string name)))
 
-  (define-record-type channel-request/x11-req
-    (parent channel-request)
-    (fields single-connection? protocol cookie screen)
-    (protocol (cr-protocol "x11-req")))
+  (define-request-type subsystem
+    (fields (boolean want-reply?)
+            (string name)))
 
-  (define-record-type channel-request/xon-xoff
-    (parent channel-request)
-    (fields client-can-do?)
-    (protocol (cr-protocol/no-reply "xon-xoff")))
+  (define-request-type window-change
+    (fields (uint32 columns)
+            (uint32 rows)
+            (uint32 width)
+            (uint32 height)))
 
-  #;
-  (define cr-types
-    (list (list "env" make-channel-request/env 'can-reply '(string string))
-          (list "exec" 'can-reply '(string))
-          (list "exit-signal" #f '(string boolean string string))
-          (list "exit-status" #f '(dword))
-          (list "pty-req" )
-          (list "shell" 'can-reply '())))
+  (define-request-type x11-req
+    (fields (boolean want-reply?)
+            (boolean single-connection?)
+            (string protocol)
+            (string cookie)
+            (uint32 screen)))
+
+  (define-request-type xon-xoff
+    (fields (boolean client-can-do?)))
 
   (define (parse-channel-request b)
     (let* ((recipient (read-uint32 b))
            (type (read-string b))
            (want-reply? (positive? (read-byte b))))
-      ;; TODO: more types
-      (cond ((string=? type "break")
-             (make-channel-request/break recipient want-reply?
-                                         (read-uint32 b)))
-            ((string=? type "env")
-             (let* ((name (read-string b))
-                    (value (read-string b)))
-               (make-channel-request/env recipient
-                                         want-reply?
-                                         name value)))
-            ((string=? type "exec")
-             (make-channel-request/exec recipient want-reply?
-                                        (read-bytevector b)))
-            ((string=? type "exit-status")
-             (let ((value (read-uint32 b)))
-               (make-channel-request/exit-status recipient value)))
-            ((string=? type "exit-signal")
-             (let* ((name (read-string b))
-                    (core-dumped? (and (positive? (read-byte b))
-                                       'core-dumped))
-                    (message (read-string b))
-                    (language (read-string b)))
-               (make-channel-request/exit-signal recipient name
-                                                 core-dumped?
-                                                 message
-                                                 language)))
-            ((string=? type "pty-req")
-             (let ((TERM (read-string b)))
-               (let-values (((columns rows width height)
-                             (unpack "!u4L" (buffer-data b)
-                                     (buffer-top b))))
-                 (buffer-seek! b (format-size "!4L"))
-                 (let ((modes (read-bytevector b)))
-                   (make-channel-request/pty-req recipient
-                                                 want-reply?
-                                                 TERM
-                                                 columns rows
-                                                 width height
-                                                 modes)))))
-            ((string=? type "shell")
-             (make-channel-request/shell recipient want-reply?))
-            ((string=? type "x11-req")
-             (let* ((single? (positive? (read-byte b)))
-                    (proto (read-string b))
-                    (cookie (read-string b))
-                    (screen (read-uint32 b)))
-               (make-channel-request/x11-req recipient want-reply?
-                                             single? proto cookie screen)))
-            (else
-             (make-channel-request recipient type want-reply?)))))
+      (cond ((assoc type cr-types) =>
+             (lambda (encoding)
+               ((cadr encoding) recipient want-reply? b)))
+          (else
+           (make-channel-request recipient type want-reply?)))))
 
   (define (put-channel-request p m)
     (put-u8 p SSH-MSG-CHANNEL-REQUEST)
     (put-bytevector p (pack "!L" (channel-packet-recipient m)))
     (put-bvstring p (channel-request-type m))
     (put-u8 p (if (channel-request-want-reply? m) 1 0))
-    #;
     (cond ((assoc (channel-request-type m) cr-types) =>
            (lambda (encoding)
-             (put-record p m #f (caddr encoding))))
+             ((caddr encoding) p m)))
           (else
            (error 'put-channel-request
                   "bug: can't encode this message"
-                  m)))
-
-    ;; TODO: more types
-    (cond ((channel-request/break? m)
-           (put-record p m #f '(uint32)))
-          ((channel-request/env? m)
-           (put-record p m #f '(string string)))
-          ((channel-request/exec? m)
-           (put-record p m #f '(string)))
-          ((channel-request/pty-req? m)
-           (put-record p m #f '(string uint32 uint32 uint32 uint32 string)))
-          ((channel-request/shell? m))
-          ((channel-request/window-change? m)
-           (put-record p m #f '(uint32 uint32 uint32 uint32)))
-          ((channel-request/xon-xoff? m)
-           (put-record p m #f '(boolean)))
-          (else
-           (error 'put-channel-request "bug: can't encode this message"
                   m))))
-
-  ;; (call-with-bytevector-output-port
-  ;;   (lambda (p)
-  ;;     (put-channel-request p (make-channel-request/exec 0 #t "ls"))))
 
 ;;; Channel success
 
@@ -724,7 +727,7 @@
             (make-who-condition who)
             (make-message-condition msg)
             (make-irritants-condition irritants))))
-  
+
   (define terminal-modes->bytevector
     (let ((ht (make-eq-hashtable)))
       (do ((op 0 (+ op 1)))
