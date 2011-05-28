@@ -17,7 +17,7 @@
 
 ;; Private parsing, formatting, public key algorithms, stuff
 
-(library (weinholt net ssh private (1 0 20110204))
+(library (weinholt net ssh private (1 0 20110527))
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data
@@ -259,7 +259,7 @@
         ((null? types))
       (let ((v ((record-accessor rtd field) msg)))
         (case (car types)
-          ((string) (put-bvstring p v))
+          ((string bytevector) (put-bvstring p v))
           ((uint32) (put-bytevector p (pack "!L" v)))
           ((mpint) (put-mpint p v))
           ((name-list) (put-name-list p v))
