@@ -746,9 +746,14 @@ the order of G (the base point).
 This is one of the parameters that defines the curve: the cofactor.
 @end deffn
 
-@deffn Procedure elliptic-curve-prime-p elliptic-prime-curve
+@deffn Procedure elliptic-prime-curve-p elliptic-prime-curve
 This is one of the parameters that defines the curve: the integer that
 defines the prime finite field.
+@end deffn
+
+@deffn Procedure elliptic-curve=? elliptic-curve@math{_1} elliptic-curve@math{_2}
+Returns @code{#t} if the elliptic curve objects are equal (in the
+sense that all domain parameters are equal).
 @end deffn
 
 @deffn Procedure ec+ P Q elliptic-curve

@@ -79,13 +79,11 @@ The values are fetched from the @var{bytevector} starting at the
 @end example
 
 @example
-(import (weinholt struct pack))
 (number->string (unpack "!L" #vu8(#x00 #xFB #x42 #xE3)) 16)
 @result{} "FB42E3"
 @end example
 
 @example
-(import (weinholt struct pack))
 (unpack "!2CS" #vu8(1 2 0 3))
 @result{} 1 
 @result{} 2
@@ -98,7 +96,6 @@ Returns a new bytevector containing the values encoded as per the
 @var{fmt} string.
 
 @example
-(import (weinholt struct pack))
 (pack "!CCS" 1 2 3)
 @result{} #vu8(1 2 0 3)
 @end example
@@ -151,7 +148,6 @@ Returns how many bytes the fields in the format string would use
 if packed together, including any padding.
 
 @example
-(import (weinholt struct pack))
 (format-size "!xQ")
 @result{} 16
 @end example

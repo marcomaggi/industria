@@ -25,14 +25,14 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20110527))
+(library (weinholt net ssh connection (1 0 20110720))
   (export register-connection
 
           make-global-request global-request?
           global-request-type
           global-request-want-reply?
 
-          request-success? make-request-success
+          request-success? make-request-success request-success-data
           request-failure? make-request-failure
 
           channel-open?
@@ -40,9 +40,22 @@
           channel-open-initial-window-size channel-open-maximum-packet-size
 
           channel-open/direct-tcpip? make-channel-open/direct-tcpip
+          channel-open/direct-tcpip-connect-address
+          channel-open/direct-tcpip-connnect-port
+          channel-open/direct-tcpip-originator-address
+          channel-open/direct-tcpip-originator-port
+
           channel-open/forwarded-tcpip? make-channel-open/forwarded-tcpip
+          channel-open/forwarded-tcpip-connected-address
+          channel-open/forwarded-tcpip-connnected-port
+          channel-open/forwarded-tcpip-originator-address
+          channel-open/forwarded-tcpip-originator-port
+                    
           channel-open/session? make-channel-open/session
+          
           channel-open/x11? make-channel-open/x11
+          channel-open/x11-originator-address
+          channel-open/x11-originator-port
 
           channel-open-failure? make-channel-open-failure
           channel-open-failure-reason-code
@@ -99,10 +112,10 @@
 
           channel-request/shell? make-channel-request/shell
 
-          channel-request/signal make-channel-request/signal
+          channel-request/signal? make-channel-request/signal
           channel-request/signal-name
 
-          channel-request/subsystem make-channel-request/subsystem
+          channel-request/subsystem? make-channel-request/subsystem
           channel-request/subsystem-name
 
           channel-request/window-change? make-channel-request/window-change

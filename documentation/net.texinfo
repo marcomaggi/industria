@@ -4,10 +4,11 @@
 @section Network protocols
 
 @menu
+@c * net dns::            Domain Name System (DNS)
 * net irc::            Internet Relay Chat
 * net irc fish::       Blowcrypt/FiSH encryption for IRC
 * net otr::            Off-the-Record Messaging
-@c * net ssh::            Secure Shell (SSH)
+* net ssh::            Secure Shell (SSH)
 * net tcp::            Basic TCP client connections
 * net tls simple::     Transport Layer Security (simple interface)
 @end menu
@@ -559,7 +560,7 @@ make it unsafe.
 
 
 @c ======================================================================
-@c @include net-ssh.texinfo
+@include net-ssh.texinfo
 
 @c ======================================================================
 @node net tcp

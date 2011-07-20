@@ -1,0 +1,1135 @@
+@c ======================================================================
+@node net ssh
+@subsection Secure Shell (SSH)
+The @code{(weinholt net ssh)} library hierarchy deals with the Secure
+Shell protocol. Both SSH servers and clients can be written with these
+libraries. Some convenient abstractions are currently missing though,
+e.g.@: a channel abstraction. These libraries hide the details of the
+wire protocol and the cryptographic algorithms. The protocol is
+standardized by a series of RFCs: 4250, 4251, 4252, 4253, 4254, etc.
+
+No TCP server abstraction is provided by Industria. To make a server
+you will probably need to use your implementation's network
+abstractions.
+
+It remains to be seen if this interface can be used for interactive
+applications. One problem is @code{get-ssh}, which reads a whole SSH
+packet. This procedure is blocking. @rnrs{} doesn't provide any
+procedures for event-driven programming, so the author has made no
+effort to make this library work in an event-driven setting.
+
+@menu
+* net ssh connection::   Secure Shell Connection Protocol
+* net ssh transport::    Secure Shell Transport Layer Protocol
+* net ssh userauth::     Secure Shell Authentication Protocol
+@end menu
+
+@deffn Parameter ssh-debugging
+This SRFI-39 parameter controls debug output. It is a bit field with
+three bits currently defined. Bit 0 enables general trace messages,
+bit 1 enables packet traces and bit 2 enables packet hexdumps.
+
+@emph{Default}: @code{#b000}
+@end deffn
+
+@deffn Parameter ssh-debugging-port
+This SRFI-39 parameter controls where debug output is written to. It
+defaults to the error port that was current when the library top-level
+was run.
+@end deffn
+
+@deffn Parameter identification-protocol-version
+This SRFI-39 parameter is used when constructing the local
+identification string. It specifies which SSH protocol version number
+is supported.
+
+@emph{Default}: "2.0"
+@end deffn
+
+@deffn Parameter identification-software-version
+This SRFI-39 parameter is used when constructing the local
+identification string. It specifies the name and version of the client
+or server.
+
+@emph{Default}: "Industria_1"
+@end deffn
+
+@deffn Parameter identification-comments
+This SRFI-39 parameter is used when constructing the local
+identification string. It is @code{#f} or optionally a string of
+comments. This field is sometimes used to identify a vendor.
+
+@emph{Default}: @code{#f}
+@end deffn
+
+The following parameters are when constructing the local kex exchange
+packet. It lists the preferred algorithms. You may remove and reorder
+the algorithms, but you can't introduce new ones without first adding
+them to @code{(weinholt net ssh algorithms)}. The defaults may change
+in the future.
+
+@deffn Parameter preferred-kex-algorithms
+This is a list of key exchange algorithm names in the order they are
+preferred.
+
+@emph{Default}:
+ ("diffie-hellman-group-exchange-sha256"
+  "diffie-hellman-group-exchange-sha1"
+  "diffie-hellman-group14-sha1"
+  "diffie-hellman-group1-sha1")
+@end deffn
+
+@deffn Parameter preferred-server-host-key-algorithms
+This is a list of host key algorithm names in the order they are
+preferred. The server may have more than one host key and this is used
+to decide between them.
+
+@emph{Default}:
+ ("ecdsa-sha2-nistp256"
+  "ecdsa-sha2-nistp384"
+  "ecdsa-sha2-nistp521"
+  "ssh-rsa" "ssh-dss")
+@end deffn
+
+@deffn Parameter preferred-encryption-algorithms-client->server
+This is a list of encryption algorithm names in the order they are
+preferred for communication from the client to the server.
+
+@emph{Default}:
+ ("aes128-ctr" "aes192-ctr" "aes256-ctr" "aes128-cbc"
+  "aes192-cbc" "aes256-cbc" "blowfish-cbc" "arcfour256"
+  "arcfour128" "3des-cbc")
+@end deffn
+
+@deffn Parameter preferred-encryption-algorithms-server->client
+This is a list of encryption algorithm names in the order they are
+preferred for communication from the server to the client.
+
+@emph{Default}:
+ ("aes128-ctr" "aes192-ctr" "aes256-ctr" "aes128-cbc"
+  "aes192-cbc" "aes256-cbc" "blowfish-cbc" "arcfour256"
+  "arcfour128" "3des-cbc")
+@end deffn
+
+@deffn Parameter preferred-mac-algorithms-client->server
+This is a list of message authentication code algorithms in the order
+they are preferred for communication from the client to the server.
+
+@emph{Default}: ("hmac-md5" "hmac-sha1" "hmac-sha1-96" "hmac-md5-96")
+@end deffn
+
+@deffn Parameter preferred-mac-algorithms-server->client
+This is a list of message authentication code algorithms in the order
+they are preferred for communication from the server to the client.
+
+@emph{Default}: ("hmac-md5" "hmac-sha1" "hmac-sha1-96" "hmac-md5-96")
+@end deffn
+
+@deffn Parameter preferred-compression-algorithms-client->server
+This is a list of compression algorithms for packets transmitted from
+the client to the server.
+
+@emph{Default}: ("none")
+@end deffn
+
+@deffn Parameter preferred-compression-algorithms-server->client
+This is a list of compression algorithms for packets transmitted from
+the server to the client.
+
+@emph{Default}: ("none")
+@end deffn
+
+@deffn Parameter preferred-languages-client->server
+This is currently not used.
+
+@emph{Default}: ()
+@end deffn
+
+@deffn Parameter preferred-languages-server->client
+This is currently not used.
+
+@emph{Default}: ()
+@end deffn
+
+
+@deffn Procedure make-ssh-client binary-input-port binary-output-port
+Starts an SSH client connection over the two given ports, which should
+be connected to a server via TCP (or some other similar means).
+
+If everything goes right an @code{ssh-conn} object is returned.
+The @emph{peer identification} and @emph{kexinit} fields are valid.
+@end deffn
+
+@deffn Procedure make-ssh-server binary-input-port binary-output-port @
+                                 keys
+Starts an SSH server connection over the two given ports, which should
+be connected to a client via TCP (or some other similar means).
+
+@var{keys} is a list of host keys. The currently supported key types
+are @code{dsa-private-key} and @code{ecdsa-sha-2-private-key}.
+
+If everything goes right an @code{ssh-conn} object is returned.
+The @emph{peer identification} and @emph{kexinit} fields are valid.
+@end deffn
+
+@deffn Procedure ssh-key-exchange ssh-conn
+This runs the negotiated key exchange algorithm on @var{ssh-conn}.
+After this is done the client will have received one of the server's
+public keys. The negotiated encryption and MAC algorithms will have
+been activated.
+@end deffn
+
+@deffn Procedure ssh-conn-peer-identification ssh-conn
+The identification string the peer sent. This is a string that
+contains the peer's protocol version, software version and optionally
+some comments.
+@end deffn
+
+
+
+@deffn Procedure ssh-conn-peer-kexinit ssh-conn
+This is the peer's key exchange initialization (kexinit) packet. It
+lists the peer's supported algorithms. @xref{net ssh transport}.
+@end deffn
+
+@deffn Procedure ssh-conn-host-key ssh-conn
+The server's public key. This has unspecified contents before the
+@code{ssh-key-exchange} procedure returns.
+@end deffn
+
+@deffn Procedure ssh-conn-session-id ssh-conn
+The session ID of @var{ssh-conn}. This has unspecified contents before
+the @code{ssh-key-exchange} procedure returns.
+@end deffn
+
+@deffn Procedure ssh-conn-registrar ssh-conn
+Returns a procedure that can be used to register parsers and
+formatters for SSH packet types. The returned procedure should be
+given as an argument to @code{register-connection} and
+@code{register-userauth}.
+@c this should probably be part of the private interface:
+@c The procedure takes three arguments: an integer representing a packet
+@c type, a parser and a formatter. The parser takes a single argument: a
+@c buffer object (as defined in @code{(weinholt net buffer)}) and returns
+@c an ssh-packet object. The formatter takes a binary output port and a
+@c packet. It writes the packet to the port, starting with the @emph{u8}
+@c that identifies the packet type.
+@end deffn
+
+@deffn Procedure ssh-error ssh-conn who message code irritants ...
+Sends a @code{disconnect} packet to the peer. The packet contains the
+message and the code. The connection is then closed and an error is
+raised.
+
+The error code constants are defined elsewhere. @xref{net ssh transport}.
+@end deffn
+
+@deffn Procedure put-ssh ssh-conn pkt
+Sends the SSH packet @var{pkt} to the peer of @var{ssh-conn}.
+@end deffn
+
+@deffn Procedure get-ssh ssh-conn
+Reads an SSH packet object from the peer of @var{ssh-conn}. The
+end-of-file object will be returned if the peer has closed the
+connection. The procedure blocks until a message has been received.
+Any messages of the type @code{ignore} are ignored.
+
+Packet types must be registered before they can be received. Initially
+only the transport layer types are registered. If an unregistered type
+is received this procedure returns a list of two items: the symbol
+@code{unimplemented} and the unparsed contents of the packet. A packet
+of type @var{unimplemented} is sent to the peer.
+@end deffn
+
+@deffn Procedure close-ssh ssh-conn
+Flushes the output port of @var{ssh-conn}, and then closes both the
+input and output ports.
+@end deffn
+
+@deffn Procedure flush-ssh-output ssh-conn
+Flushes any pending output on @var{ssh-conn}.
+@end deffn
+
+The procedures below are used in the implementation of key
+re-exchange. After the initial key exchange either party can initiate
+a key re-exchange. RFC 4253 has the following to say on the subject:
+
+@quotation
+It is RECOMMENDED that the keys be changed after each gigabyte of
+transmitted data or after each hour of connection time, whichever
+comes sooner.  However, since the re-exchange is a public key
+operation, it requires a fair amount of processing power and should
+not be performed too often.
+@end quotation
+
+The demonstration program @code{secsh-client} contains an example of
+how to initiate key re-exchange. The server demonstration program
+@code{honingsburk} also handles key re-exchange, but does not initiate
+it.
+
+@deffn Procedure build-kexinit-packet ssh-conn
+Constructs and returns a key exchange packet for use by the local
+side.
+@end deffn
+
+@deffn Procedure key-exchange-packet? pkt
+Returns @code{#t} if @var{pkt} should be given to
+@code{process-key-exchange-packet} for handling by the key exchange
+logic.
+@end deffn
+
+@deffn Procedure ssh-key-re-exchange ssh-conn peer-kex local-kex
+Initiates key re-exchange on @var{ssh-conn}. This requires the peer's
+key exchange packet @var{peer-kex}, and the local key exchange packet
+@var{local-kex}. The procedure returns before the key re-exchange is
+finished. Both sides of the algorithm will need to communicate to
+complete the exchange.
+@end deffn
+
+@deffn Procedure process-key-exchange-packet ssh-conn pkt
+Updates the key exchange logic on @var{ssh-conn} with the contents of
+@var{pkt}. If the packet is a @code{kexinit} packet and @var{ssh-conn}
+is a server, then this will automatically initiate the key re-exchange
+algorithm.
+
+The procedure may return the symbol @code{finished} to indicate that
+the key exchange algorithm has finished and the new algorithms are
+used for packets sent to the peer.
+
+@var{Note}: This interface is currently balanced in favor of servers.
+More experience in using the library is needed to determine how to
+make the key re-exchange interface better for clients. Suggestions are
+welcome.
+@end deffn
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
+
+
+@c ======================================================================
+@node net ssh connection
+@subsubsection Secure Shell Connection Protocol
+The @code{(weinholt net ssh connection)} library implements record
+types, parsers and formatters for the connection protocol packets in
+SSH.
+
+The connection protocol handles two types of communication: global
+requests and channels. The global requests can be used to setup TCP/IP
+port forwarding. Most communication over SSH passes through channels.
+Channels are opened with the @code{channel-open} requests. The client
+and the server each assign an ID number to a channel: one ID is sent
+in the @code{channel-open} packet, the other ID in the
+@code{channel-open-confirmation} packet. In Industria all packets that
+are directed to a specific channel inherit from the
+@code{channel-packet} record type and the ID can be found with the
+@code{channel-packet-recipient} procedure.
+
+See RFC 4254 for a more detailed description of this protocol.
+
+@deffn Procedure register-connection registrar
+Registers the packet types for the connnection protocol so that they
+may be received and sent. A registrar may be obtained from an ssh-conn
+object using @code{ssh-conn-registrar}.
+@end deffn
+
+
+
+
+@deffn Procedure make-global-request type want-reply?
+
+
+The type is a string, e.g.@: @code{"no-more-sessions@@openssh.com"}.
+@end deffn
+
+@deffn Procedure global-request? obj
+@end deffn
+
+@deffn Procedure global-request-type pkt
+@end deffn
+
+@deffn Procedure global-request-want-reply? pkt
+This field is true if the sender expects a @code{request-success} or
+@code{request-failure} record in response.
+@end deffn
+
+
+@deffn Procedure make-request-success data
+@end deffn
+
+@deffn Procedure request-success? obj
+@end deffn
+
+@deffn Procedure request-success-data pkt
+This field contains request-specific data, but is mostly empty.
+@end deffn
+
+
+@deffn Procedure make-request-failure
+Returns an object which indicates that a global request failed.
+@end deffn
+
+@deffn Procedure request-failure? obj
+@end deffn
+
+
+
+@deffn Procedure channel-open? obj
+@end deffn
+
+@deffn Procedure channel-open-type pkt
+@end deffn
+
+@deffn Procedure channel-open-sender pkt
+@end deffn
+
+@deffn Procedure channel-open-initial-window-size pkt
+@end deffn
+
+@deffn Procedure channel-open-maximum-packet-size pkt
+@end deffn
+
+
+@deffn Procedure make-channel-open/direct-tcpip type sender-id initial-window-size @
+            connect-address connnect-port originator-address originator-port
+@end deffn
+
+@deffn Procedure channel-open/direct-tcpip? obj
+@end deffn
+
+@deffn Procedure channel-open/direct-tcpip-connect-address pkt
+@end deffn
+
+@deffn Procedure channel-open/direct-tcpip-connnect-port pkt
+@end deffn
+
+@deffn Procedure channel-open/direct-tcpip-originator-address pkt
+@end deffn
+
+@deffn Procedure channel-open/direct-tcpip-originator-port pkt
+@end deffn
+
+
+@deffn Procedure make-channel-open/forwarded-tcpip type sender-id initial-window-size @
+            maximum-packet-size connected-address connnected-port @
+            originator-address originator-port
+@end deffn
+
+@deffn Procedure channel-open/forwarded-tcpip? obj
+@end deffn
+
+@deffn Procedure channel-open/forwarded-tcpip-connected-address pkt
+@end deffn
+
+@deffn Procedure channel-open/forwarded-tcpip-connnected-port pkt
+@end deffn
+
+@deffn Procedure channel-open/forwarded-tcpip-originator-address pkt
+@end deffn
+
+@deffn Procedure channel-open/forwarded-tcpip-originator-port pkt
+@end deffn
+
+
+
+@deffn Procedure make-channel-open/session type sender-id initial-window-size @
+            maximum-packet-size
+@end deffn
+
+@deffn Procedure channel-open/session? obj
+@end deffn
+
+
+@deffn Procedure make-channel-open/x11 type sender-id initial-window-size @
+            maximum-packet-size originator-address originator-port
+@end deffn
+
+@deffn Procedure channel-open/x11? obj
+@end deffn
+
+@deffn Procedure channel-open/x11-originator-address pkt
+@end deffn
+
+@deffn Procedure channel-open/x11-originator-port pkt
+@end deffn
+
+
+@deffn Procedure channel-packet? obj
+@end deffn
+
+@deffn Procedure channel-packet-recipient pkt
+@end deffn
+
+
+@deffn Procedure make-channel-open-failure recipient reason-code description language
+@end deffn
+
+@deffn Procedure channel-open-failure? obj
+@end deffn
+
+@deffn Procedure channel-open-failure-reason-code pkt
+@vtable @code
+@item SSH-OPEN-ADMINISTRATIVELY-PROHIBITED
+@item SSH-OPEN-CONNECT-FAILED
+@item SSH-OPEN-UNKNOWN-CHANNEL-TYPE
+@item SSH-OPEN-RESOURCE-SHORTAGE
+@end vtable
+@end deffn
+
+@deffn Procedure channel-open-failure-description pkt
+@end deffn
+
+@deffn Procedure channel-open-failure-language pkt
+@end deffn
+
+
+@deffn Procedure make-channel-open-confirmation recipient @ 
+            sender initial-window-size maximum-packet-size
+@end deffn
+
+@deffn Procedure channel-open-confirmation? obj
+@end deffn
+
+@deffn Procedure channel-open-confirmation-sender pkt
+@end deffn
+
+@deffn Procedure channel-open-confirmation-initial-window-size pkt
+@end deffn
+
+@deffn Procedure channel-open-confirmation-maximum-packet-size pkt
+@end deffn
+
+
+@deffn Procedure make-channel-window-adjust recipient amount
+@end deffn
+
+@deffn Procedure channel-window-adjust? obj
+@end deffn
+
+@deffn Procedure channel-window-adjust-amount pkt
+@end deffn
+
+
+@deffn Procedure make-channel-data recipient value
+@end deffn
+
+@deffn Procedure channel-data? obj
+@end deffn
+
+@deffn Procedure channel-data-value pkt
+@end deffn
+
+
+@deffn Procedure make-channel-extended-data recipient type value
+@end deffn
+
+@deffn Procedure channel-extended-data? obj
+@end deffn
+
+@deffn Procedure channel-extended-data-type pkt
+@vtable @code
+@item SSH-EXTENDED-DATA-STDERR
+@end vtable
+@end deffn
+
+@deffn Procedure channel-extended-data-value pkt
+@end deffn
+
+
+@deffn Procedure make-channel-eof recipient
+@end deffn
+
+@deffn Procedure channel-eof? obj
+@end deffn
+
+
+@deffn Procedure make-channel-close recipient
+@end deffn
+
+@deffn Procedure channel-close? obj
+@end deffn
+
+
+@deffn Procedure make-channel-success recipient
+@end deffn
+
+@deffn Procedure channel-success? obj
+@end deffn
+
+
+@deffn Procedure make-channel-failure recipient
+@end deffn
+
+@deffn Procedure channel-failure? obj
+@end deffn
+
+
+@c @deffn Procedure make-channel-request
+@c @end deffn
+
+@deffn Procedure channel-request? obj
+@end deffn
+
+@deffn Procedure channel-request-type req
+@end deffn
+
+@deffn Procedure channel-request-want-reply? req
+@end deffn
+
+
+@deffn Procedure make-channel-request/break recipient want-reply? length
+@end deffn
+
+@deffn Procedure channel-request/break? obj
+@end deffn
+
+@deffn Procedure channel-request/break-length req
+@end deffn
+
+
+@deffn Procedure make-channel-request/env recipient want-reply? name value
+@end deffn
+
+@deffn Procedure channel-request/env? obj
+@end deffn
+
+@deffn Procedure channel-request/env-name req
+@end deffn
+
+@deffn Procedure channel-request/env-value req
+@end deffn
+
+
+@deffn Procedure make-channel-request/exec recipient want-reply? command
+@end deffn
+
+@deffn Procedure channel-request/exec? obj
+@end deffn
+
+@deffn Procedure channel-request/exec-command req
+@end deffn
+
+
+@deffn Procedure make-channel-request/exit-signal recipient name core-dumped? @
+            message language
+@end deffn
+
+@deffn Procedure channel-request/exit-signal? obj
+@end deffn
+
+@deffn Procedure channel-request/exit-signal-name req
+@end deffn
+
+@deffn Procedure channel-request/exit-signal-core-dumped? req
+@end deffn
+
+@deffn Procedure channel-request/exit-signal-message req
+@end deffn
+
+@deffn Procedure channel-request/exit-signal-language req
+@end deffn
+
+
+@deffn Procedure make-channel-request/exit-status recipient value
+@end deffn
+
+@deffn Procedure channel-request/exit-status? obj
+@end deffn
+
+@deffn Procedure channel-request/exit-status-value req
+@end deffn
+
+
+@deffn Procedure make-channel-request/pty-req recipient want-reply? term columns rows @
+            width height modes
+@end deffn
+
+@deffn Procedure channel-request/pty-req? obj
+@end deffn
+
+@deffn Procedure channel-request/pty-req-term req
+@end deffn
+
+@deffn Procedure channel-request/pty-req-columns req
+@end deffn
+
+@deffn Procedure channel-request/pty-req-rows req
+@end deffn
+
+@deffn Procedure channel-request/pty-req-width req
+@end deffn
+
+@deffn Procedure channel-request/pty-req-height req
+@end deffn
+
+@deffn Procedure channel-request/pty-req-modes req
+@end deffn
+
+
+@deffn Procedure bytevector->terminal-modes bv
+@end deffn
+
+@deffn Procedure terminal-modes->bytevector modes
+@end deffn
+
+
+@deffn Procedure make-channel-request/shell recipient want-reply?
+@end deffn
+
+@deffn Procedure channel-request/shell? obj
+@end deffn
+
+
+@deffn Procedure make-channel-request/signal recipient name
+@end deffn
+
+@deffn Procedure channel-request/signal? obj
+@end deffn
+
+@deffn Procedure channel-request/signal-name req
+@end deffn
+
+
+@deffn Procedure make-channel-request/subsystem recipient want-reply? name
+@end deffn
+
+@deffn Procedure channel-request/subsystem? obj
+@end deffn
+
+@deffn Procedure channel-request/subsystem-name req
+@end deffn
+
+
+@deffn Procedure make-channel-request/window-change recipient columns rows width height
+@end deffn
+
+@deffn Procedure channel-request/window-change? obj
+@end deffn
+
+@deffn Procedure channel-request/window-change-columns req
+@end deffn
+
+@deffn Procedure channel-request/window-change-rows req
+@end deffn
+
+@deffn Procedure channel-request/window-change-width req
+@end deffn
+
+@deffn Procedure channel-request/window-change-height req
+@end deffn
+
+
+@deffn Procedure make-channel-request/x11-req recipient want-reply? single-connection? @
+            protocol cookie screen
+@end deffn
+
+@deffn Procedure channel-request/x11-req? obj
+@end deffn
+
+@deffn Procedure channel-request/x11-req-single-connection? req
+@end deffn
+
+@deffn Procedure channel-request/x11-req-protocol req
+@end deffn
+
+@deffn Procedure channel-request/x11-req-cookie req
+@end deffn
+
+@deffn Procedure channel-request/x11-req-screen req
+@end deffn
+
+
+@deffn Procedure make-channel-request/xon-xoff recipient client-can-do?
+@end deffn
+
+@deffn Procedure channel-request/xon-xoff? obj
+@end deffn
+
+@deffn Procedure channel-request/xon-xoff-client-can-do? req
+@end deffn
+
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
+
+
+@c ======================================================================
+@node net ssh transport
+@subsubsection Secure Shell Transport Layer Protocol
+The @code{(weinholt net ssh transport)} library implements record
+types, parsers and formatters for the transport layer packets in SSH.
+
+See RFC 4253 for a description of this protocol.
+
+@deffn Procedure register-transport registrar
+Registers the packet types for the transport layer so that they may be
+received and sent. A registrar may be obtained using
+@code{ssh-conn-registrar}.
+@end deffn
+
+@deffn Procedure make-disconnect code message language
+@end deffn
+
+@deffn Procedure disconnect? obj
+Returns @code{#t} if @var{obj} is a @code{disconnect} packet.
+@end deffn
+
+@deffn Procedure disconnect-code disconnect
+@vtable @code
+@item SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT
+@item SSH-DISCONNECT-PROTOCOL-ERROR
+@item SSH-DISCONNECT-KEY-EXCHANGE-FAILED
+@item SSH-DISCONNECT-RESERVED
+@item SSH-DISCONNECT-MAC-ERROR
+@item SSH-DISCONNECT-COMPRESSION-ERROR
+@item SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
+@item SSH-DISCONNECT-PROTOCOL-VERSION-NOT-SUPPORTED
+@item SSH-DISCONNECT-HOST-KEY-NOT-VERIFIABLE
+@item SSH-DISCONNECT-CONNECTION-LOST
+@item SSH-DISCONNECT-BY-APPLICATION
+@item SSH-DISCONNECT-TOO-MANY-CONNECTIONS
+@item SSH-DISCONNECT-AUTH-CANCELLED-BY-USER
+@item SSH-DISCONNECT-NO-MORE-AUTH-METHODS-AVAILABLE
+@item SSH-DISCONNECT-ILLEGAL-USER-NAME
+@end vtable
+@end deffn
+
+@deffn Procedure disconnect-message disconnect
+@end deffn
+
+@deffn Procedure disconnect-language disconnnect
+@end deffn
+
+
+@deffn Procedure make-ignore data
+Construct a new @code{ignore} packet using the bytevector @var{data}
+as the payload. These packets are ignored by receivers but can be used
+to make traffic analysis more difficult.
+@end deffn
+
+@deffn Procedure ignore? obj
+Returns @code{#t} if @var{obj} is an @code{ignore} packet.
+@end deffn
+
+
+
+@deffn Procedure make-unimplemented sequence-number
+@end deffn
+
+@deffn Procedure unimplemented? obj
+Returns @code{#t} if @var{obj} is an @code{unimplemented} packet.
+@end deffn
+
+@deffn Procedure unimplemented-sequence-number unimplemented
+@end deffn
+
+
+@deffn Procedure make-debug always-display? message language
+@end deffn
+
+@deffn Procedure debug? obj
+Returns @code{#t} if @var{obj} is a @code{debug} packet.
+@end deffn
+
+@deffn Procedure debug-always-display? debug
+@end deffn
+
+@deffn Procedure debug-message debug
+@end deffn
+
+@deffn Procedure debug-language debug
+@end deffn
+
+
+@deffn Procedure make-service-request name
+@end deffn
+
+@deffn Procedure service-request? obj
+Returns @code{#t} if @var{obj} is a @code{service-request} packet.
+@end deffn
+
+@deffn Procedure service-request-name service-request
+@end deffn
+
+
+@deffn Procedure make-service-accept name
+@end deffn
+
+@deffn Procedure service-accept? obj
+Returns @code{#t} if @var{obj} is a @code{service-accept} packet.
+@end deffn
+
+@deffn Procedure service-accept-name service-accept
+@end deffn
+
+@c Used privately:
+@c @deffn Procedure put-kexinit output-port kexinit
+@c @end deffn
+
+@deffn Procedure make-kexinit cookie kex-algorithms server-host-key-algorithms @
+            encryption-algorithms-client-to-server encryption-algorithms-server-to-client @
+            mac-algorithms-client-to-server mac-algorithms-server-to-client @
+            compression-algorithms-client-to-server @
+            compression-algorithms-server-to-client @
+            languages-client-to-server languages-server-to-client @
+            first-kex-packet-follows? reserved
+@end deffn
+
+@deffn Procedure kexinit? obj
+Returns @code{#t} if @var{obj} is a @code{kexinit} packet.
+@end deffn
+
+@deffn Procedure kexinit-cookie kexinit
+@end deffn
+
+@deffn Procedure kexinit-kex-algorithms kexinit
+@end deffn
+
+@deffn Procedure kexinit-server-host-key-algorithms kexinit
+@end deffn
+
+@deffn Procedure kexinit-encryption-algorithms-client-to-server kexinit
+@end deffn
+
+@deffn Procedure kexinit-encryption-algorithms-server-to-client kexinit
+@end deffn
+
+@deffn Procedure kexinit-mac-algorithms-client-to-server kexinit
+@end deffn
+
+@deffn Procedure kexinit-mac-algorithms-server-to-client kexinit
+@end deffn
+
+@deffn Procedure kexinit-compression-algorithms-client-to-server kexinit
+@end deffn
+
+@deffn Procedure kexinit-compression-algorithms-server-to-client kexinit
+@end deffn
+
+@deffn Procedure kexinit-languages-client-to-server kexinit
+@end deffn
+
+@deffn Procedure kexinit-languages-server-to-client kexinit
+@end deffn
+
+@deffn Procedure kexinit-first-kex-packet-follows? kexinit
+@end deffn
+
+@deffn Procedure kexinit-reserved kexinit
+@end deffn
+
+
+@deffn Procedure make-newkeys
+Constructs a new @code{newkeys} packet.
+@end deffn
+
+@deffn Procedure newkeys? obj
+Returns @code{#t} if @var{obj} is a @var{newkeys} packet.
+@end deffn
+
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
+
+@c ======================================================================
+@node net ssh userauth
+@subsubsection Secure Shell Authentication Protocol
+The @code{(weinholt net ssh userauth)} library implements record
+types, parsers and formatters for the authentication protocol packets
+in SSH.
+
+See RFC 4252 for a description of this protocol. In this protocol the
+client sends packets of type @code{userauth-request}. The type names
+that start with @code{userauth-request/} are sub-types that contain
+user credentials. All other packet types documented here are sent by
+the server.
+
+@deffn Procedure register-userauth registrar
+Registers the packet types for the authentication protocol so that
+they may be received and sent. A registrar may be obtained using
+@code{ssh-conn-registrar}.
+@end deffn
+
+@deffn Procedure register-userauth-password registrar
+Registers the packet types for the password authentication protocol.
+This is a supplement to @code{register-userauth}.
+@end deffn
+
+@deffn Procedure register-userauth-public-key registrar
+Registers the packet types for the public key authentication protocol.
+This is a supplement to @code{register-userauth}.
+@end deffn
+
+@deffn Procedure deregister-userauth registrar
+Deregisters all authentication protocol packet types.
+@end deffn
+
+
+@deffn Procedure make-userauth-request username service method
+@end deffn
+
+@deffn Procedure userauth-request? obj
+@end deffn
+
+@deffn Procedure userauth-request-username request
+@end deffn
+
+@deffn Procedure userauth-request-service request
+@end deffn
+
+@deffn Procedure userauth-request-method request
+@end deffn
+
+If the server does not like the credentials provided in a
+@code{userauth-request} it will send a @code{userauth-failure} packet.
+
+@deffn Procedure make-userauth-failure can-continue partial?
+@end deffn
+
+@deffn Procedure userauth-failure? obj
+@end deffn
+
+@deffn Procedure userauth-failure-can-continue failure
+@end deffn
+
+@deffn Procedure userauth-failure-partial? failure
+@end deffn
+
+The server sends @code{userauth-success} to indicate that
+authentication was successful. This message has no fields.
+
+@deffn Procedure make-userauth-success
+@end deffn
+
+@deffn Procedure userauth-success? obj
+@end deffn
+
+The server can send a banner before the user authenticates. The banner
+might often contain a warning about unauthorized access.
+
+@deffn Procedure make-userauth-banner message language
+@end deffn
+
+@deffn Procedure userauth-banner? obj
+@end deffn
+
+@deffn Procedure userauth-banner-message banner
+@end deffn
+
+@deffn Procedure userauth-banner-language banner
+@end deffn
+
+The client can try to authenticate with a password. Note that the
+unencrypted password is seen by the server. It's important to check
+hosts keys to make sure you're connecting to the right server.
+
+@deffn Procedure make-userauth-request/password username service password
+@end deffn
+
+@deffn Procedure userauth-request/password? obj
+@end deffn
+
+@deffn Procedure userauth-request/password-value request
+@end deffn
+
+The server can request that the client should change its password.
+
+@deffn Procedure make-userauth-password-changereq prompt language
+@end deffn
+
+@deffn Procedure userauth-password-changereq? obj
+@end deffn
+
+@deffn Procedure userauth-password-changereq-prompt changereq
+@end deffn
+
+@deffn Procedure userauth-password-changereq-language changereq
+@end deffn
+
+After having received a request to change its password, a client may
+do so.
+
+@deffn Procedure make-userauth-request/password-change username service old new
+@end deffn
+
+@deffn Procedure userauth-request/password-change? obj
+@end deffn
+
+@deffn Procedure userauth-request/password-change-old request
+@end deffn
+
+@deffn Procedure userauth-request/password-change-new request
+@end deffn
+
+Before performing a potentially expensive private key operation the
+client may ask the server if a specific key might be used to
+authenticate.
+
+@deffn Procedure make-userauth-request/public-key-query username service key
+@end deffn
+
+@deffn Procedure userauth-request/public-key-query? obj
+@end deffn
+
+@deffn Procedure userauth-request/public-key-query-algorithm request
+@end deffn
+
+@deffn Procedure userauth-request/public-key-query-key request
+@end deffn
+
+The server sends @code{userauth-public-key-ok} to indicate
+that the user may authenticate with the given key.
+
+@deffn Procedure make-userauth-public-key-ok algorithm key
+@end deffn
+
+@deffn Procedure userauth-public-key-ok? obj
+@end deffn
+
+@deffn Procedure userauth-public-key-ok-algorithm request
+@end deffn
+
+@deffn Procedure userauth-public-key-ok-key request
+@end deffn
+
+The client can try to authenticate itself with a signed
+@code{userauth-request/public-key} packet.
+
+@deffn Procedure make-userauth-request/public-key username service public-key
+@end deffn
+
+@deffn Procedure userauth-request/public-key? obj
+@end deffn
+
+@deffn Procedure userauth-request/public-key-algorithm request
+@end deffn
+
+@deffn Procedure userauth-request/public-key-key request
+@end deffn
+
+@deffn Procedure sign-userauth-request/public-key request session-id private-key
+This generates a signed @code{userauth-request/public-key}. It needs
+an unsigned @var{request}. One may be created with
+@code{make-userauth-request/public-key}. The @var{session-id} comes
+from @code{ssh-conn-session-id}. The @var{private-key} is one of the
+supported private key types (DSA, ECDSA).
+@end deffn
+
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
