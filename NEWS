@@ -2,16 +2,63 @@
 
 * Changes in version 1.2
 
-** (weinholt crypto ec): New library
+** (weinholt binfmt elf): Parser for ELF binaries
+
+This library provides parsers for various structures in ELF binaries.
+It also exports many standard constants. The libraries were included
+in previous releases, but had been undocumented. This release improves
+the interface and includes documentation.
+
+** (weinholt crypto ec): New library for elliptic curve cryptography
 
 This new library implements basic elliptic curve cryptography over
-prime fields. It exports mathematical operators, some standard curves,
-and procedures for bytevector conversion of points.
+finite prime fields. It exports mathematical operators, some standard
+curves, and procedures for bytevector conversion of points.
 
 ** (weinholt crypto ec dsa): New library for elliptic curve DSA
 
 This library is similar to (weinholt crypto dsa), except it works with
-elliptic curves.
+elliptic curves. ECDSA signatures can be generated and verified.
+
+** (weinholt crypto rsa): Private key operations
+
+Private RSA key operations have been implemented. See the manual for
+more details.
+
+** (weinholt crypto ssh-public-key): Support for ECDSA keys
+
+Support has been added for elliptic curve DSA keys. The new procedure
+ssh-public-key-algorithm returns the SSH algorithm identifier of a
+key.
+
+** (weinholt net ssh): New library for the Secure Shell protocol
+
+This library implements the Secure Shell protocol. This is a protocol
+widely used in the Internet as a secure replacement for telnet and
+some other services. Both servers and clients can be implemented using
+this library. It's not yet known if the provided interface is suitable
+for interactive applications.
+
+** (weinholt net tcp): Very simple TCP client library
+
+This library provides the tcp-connect procedure, which simply opens a
+TCP connection to a host and service. This requires implementation-
+specific code, so the author is not eager to provide more than the
+bare minimum. Code has been provided for most R6RS implementations.
+
+** (weinholt struct pack): Fix infinite loop in a special case
+
+When `pack!' can't determine field offsets at expansion time and it
+needs to make sure the padding between two fields is set to zero, it
+will residualize a call to the private procedure `bytevector-zero!'.
+This procedure had a bug that caused it to never terminate if the
+start and end indices differed.
+
+** (weinholt text internet): Internet address parsing and formatting
+
+This new library provides procedures for converting between string and
+bytevector representations of IPv4 and IPv6 addresses. The IPv6
+address text representation is the one recommended by RFC 5952.
 
 * Changes in version 1.1
 
