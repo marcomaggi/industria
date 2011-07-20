@@ -299,6 +299,16 @@
                    (eqv? (memory-datasize o) mode))))
 
         ;; Destination operand for the string instructions
+        (defop (Yz o opsize mode (#f operand-size))
+          ;; ES:DI, ES:EDI or RDI. No mem64+.
+          (and (memory? o)
+               (memv (memory-datasize o) '(#f 16 32))
+               (eqv? (memory-base-only o) 7) ;rDI
+               ;; Check ES
+               (case mode
+                 ((64) (not (memory-segment o)))
+                 (else (and (register? (memory-segment o))
+                            (zero? (register-index (memory-segment o))))))))
         (defop (Yv o opsize mode (#f operand-size))
           ;; ES:DI, ES:EDI or RDI.
           (and (memory? o)
