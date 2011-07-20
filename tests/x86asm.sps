@@ -260,3 +260,19 @@
 ;;; Moffset
 
 (test '(mov (mem64+ #xff00ff00ffffffff) rax) 64)
+
+;; The problem with these: the Eb opsyntax eagerly accepts them, but
+;; then can't encode them. Solution: make Eb (etc) stricter?
+
+;; XXX: also test that larger addresses can't get through
+      ;; (mov (mem+ #xff00ff00ffffffff) al)
+      ;; (mov (mem+ #xff00ff00ffffffff) ax)
+      ;; (mov (mem+ #xff00ff00ffffffff) eax)
+      ;; (mov (mem+ #xff00ff00ffffffff) rax)
+;; XXX: also test in 16- and 32-bit modes
+
+      ;; (mov (mem+ #xff00ff00ffffffff) al)
+      ;; (mov (mem+ #xff00ff00ffffffff) ax)
+      ;; (mov (mem+ #xff00ff00ffffffff) eax)
+      ;; (mov (mem+ #xff00ff00ffffffff) rax)
+
