@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -54,29 +54,22 @@
 
 ;; ascii armor
 
-(let-values (((p extract) (open-string-output-port))
-             ((str) "Crusoe's Law: With every new C++ standard, its syntax\n\
-                     asymptotically approaches that of a PERL regex."))
-  (put-delimited-base64 p "TEST" (string->utf8 str))
-  (let-values (((type str*) (get-delimited-base64 (open-string-input-port
-                                                   (string-append
-                                                    "This is garbage\n"
-                                                    (extract))))))
-    (check type => "TEST")
-    (check (utf8->string str*) => str)))
-
-
-(let-values ((ex1 (get-delimited-base64
-                 (open-string-input-port
-                "-----BEGIN EXAMPLE-----\n\
+(check (call-with-values
+         (lambda ()
+           (get-delimited-base64
+            (open-string-input-port
+             "-----BEGIN EXAMPLE-----\n\
 AAECAwQFBg==\n\
------END EXAMPLE-----\n"))))
-  (check ex1 => '("EXAMPLE" #vu8(0 1 2 3 4 5 6))))
+-----END EXAMPLE-----\n")))
+         list)
+         => '("EXAMPLE" #vu8(0 1 2 3 4 5 6)))
 
 ;; ignoring header and crc-24 checksum
-(let-values ((ex2 (get-delimited-base64
-                 (open-string-input-port
-                "Example follows\n\
+(check (call-with-values
+         (lambda ()
+           (get-delimited-base64
+            (open-string-input-port
+             "Example follows\n\
 \n\
 -----BEGIN EXAMPLE-----\n\
 Header: data\n\
@@ -86,7 +79,20 @@ foo
 \n\
 AAECAwQFBg==\n\
 =2wOb\n\
------END EXAMPLE-----\n"))))
-  (check ex2 => '("EXAMPLE" #vu8(0 1 2 3 4 5 6))))
+-----END EXAMPLE-----\n")))
+         list)
+         => '("EXAMPLE" #vu8(0 1 2 3 4 5 6)))
+
+(let-values (((p extract) (open-string-output-port))
+             ((str) "Crusoe's Law: With every new C++ standard, its syntax\n\
+                     asymptotically approaches that of a PERL regex."))
+  (put-delimited-base64 p "TEST" (string->utf8 str))
+  (let-values (((type str*) (get-delimited-base64 (open-string-input-port
+                                                   (string-append
+                                                    "This is garbage\n"
+                                                    (extract))))))
+    (check type => "TEST")
+    (check (utf8->string str*) => str)
+    #f))
 
 (check-report)

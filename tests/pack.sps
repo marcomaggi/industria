@@ -31,20 +31,23 @@
                       default-random-source random-source-randomize!)
                 (random-integer random)))
 
-(random-source-randomize! default-random-source)
+(define x
+  (random-source-randomize! default-random-source))
 
 (define (check-pack expect fmt . values)
   (display "\nFormat: ") (write fmt)
   (display "\nValues: ") (write values) (newline)
-  (check (apply pack fmt values) => expect)
-  (check (eval `(pack ,fmt ,@values)
-               (environment '(rnrs) '(weinholt struct pack)))
-         => expect)
-  (check (call-with-values (lambda () (unpack fmt expect)) list)
-         => values)
-  (check (eval `(call-with-values (lambda () (unpack ,fmt ',expect)) list)
-               (environment '(rnrs) '(weinholt struct pack)))
-         => values))
+  (let ()
+    (check (apply pack fmt values) => expect)
+    (check (eval `(pack ,fmt ,@values)
+                 (environment '(rnrs) '(weinholt struct pack)))
+           => expect)
+    (check (call-with-values (lambda () (unpack fmt expect)) list)
+           => values)
+    (check (eval `(call-with-values (lambda () (unpack ,fmt ',expect)) list)
+                 (environment '(rnrs) '(weinholt struct pack)))
+           => values)
+    #f))
 
 (define (print . x) (for-each display x) (newline))
 
@@ -141,45 +144,12 @@ the format string. Then see if pack/unpack gives the expected result."
                          (append (make-list rep v) values)
                          (+ no padsize (* rep (vector-ref t 3))))))))))))
 
-(do ((i 0 (+ i 1)))
-    ((= i 50))
-  (random-test 'native))
-
-(do ((i 0 (+ i 1)))
-    ((= i 50))
-  (random-test (endianness big)))
-
-(do ((i 0 (+ i 1)))
-    ((= i 50))
-  (random-test (endianness little)))
-
-(check-pack '#vu8() "")
-(check-pack '#vu8(0) "x")
-(check-pack '#vu8(0 0 0) "3x")
-(check-pack '#vu8() "0x")
-(check-pack '#vu8() "!0x")
-(check-pack '#vu8(#xff) "c" -1)
-(check-pack '#vu8(0 #xff) "xC" 255)
-
-(check-pack '#vu8(0 1 0 0 0 0 0 2 0 0 0 0 0 0 0 3) "!SLQ" 1 2 3)
-(check-pack '#vu8(0 0 0 0 0 0 0 1 0 0 0 2 0 3) "!QLS" 1 2 3)
-(check-pack '#vu8(0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 3) "!SQL" 1 2 3)
-(check-pack '#vu8(0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 3) ">SQL" 1 2 3)
-(check-pack '#vu8(1 0 0 0 0 0 0 0 2 0 0 0 3 0) "<QLS" 1 2 3)
 
 (check (unpack "!C" '#vu8(1 2 3 4 6 0) 5) => 0)
 (check (unpack "!S" '#vu8(1 2 3 4 0 0) 4) => 0)
 
 (check (let ((bv (make-bytevector 4 0))) (pack! "!S" bv 2 #xffee) bv)
        => '#vu8(0 0 #xff #xee))
-
-
-(check-pack '#vu8(4 1 0) "u!C S" 4 #x100)
-(check-pack '#vu8(4 0 1 0) "u!CaS" 4 #x100)
-
-(check-pack '#vu8(4 0 0 1 0) "u!C L" 4 #x100)
-
-(check-pack '#vu8(4 0 0 0 0 0 0 1 0) "u!C Q" 4 #x100)
 
 (check (let-values ((x (get-unpack (open-bytevector-input-port #vu8(4 3 2 1 2 1 1 #xff #xff))
                                 "<LSC")))
@@ -240,5 +210,39 @@ the format string. Then see if pack/unpack gives the expected result."
          (pack! "!L" bv (+ zero 2) #xFFFFFFFF)
          bv)
        => #vu8(1 1 0 0 255 255 255 255))
+
+(do ((i 0 (+ i 1)))
+    ((= i 50))
+  (random-test 'native))
+
+(do ((i 0 (+ i 1)))
+    ((= i 50))
+  (random-test (endianness big)))
+
+(do ((i 0 (+ i 1)))
+    ((= i 50))
+  (random-test (endianness little)))
+
+
+(check-pack '#vu8() "")
+(check-pack '#vu8(0) "x")
+(check-pack '#vu8(0 0 0) "3x")
+(check-pack '#vu8() "0x")
+(check-pack '#vu8() "!0x")
+(check-pack '#vu8(#xff) "c" -1)
+(check-pack '#vu8(0 #xff) "xC" 255)
+
+(check-pack '#vu8(0 1 0 0 0 0 0 2 0 0 0 0 0 0 0 3) "!SLQ" 1 2 3)
+(check-pack '#vu8(0 0 0 0 0 0 0 1 0 0 0 2 0 3) "!QLS" 1 2 3)
+(check-pack '#vu8(0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 3) "!SQL" 1 2 3)
+(check-pack '#vu8(0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 3) ">SQL" 1 2 3)
+(check-pack '#vu8(1 0 0 0 0 0 0 0 2 0 0 0 3 0) "<QLS" 1 2 3)
+
+(check-pack '#vu8(4 1 0) "u!C S" 4 #x100)
+(check-pack '#vu8(4 0 1 0) "u!CaS" 4 #x100)
+
+(check-pack '#vu8(4 0 0 1 0) "u!C L" 4 #x100)
+
+(check-pack '#vu8(4 0 0 0 0 0 0 1 0) "u!C Q" 4 #x100)
 
 (check-report)

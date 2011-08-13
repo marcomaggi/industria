@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -22,31 +22,6 @@
         (weinholt text internet)
         (weinholt text strings)
         (weinholt struct pack))
-
-;; This procedure only works for valid addresses: no error checking.
-(define (string->ipv6* str)
-  (let ((words (string-split str #\:))
-        (addr (make-bytevector 16 0)))
-    (let lp ((i 0) (dir 1) (words words))
-      (cond ((null? words) addr)
-            ((equal? (car words) "")
-             (lp 7 -1 (reverse (cdr words))))
-            (else
-             (pack! "!uS" addr (+ i i) (string->number (car words) 16))
-             (lp (fx+ i dir) dir (cdr words)))))))
-
-(do ((i 0 (+ i 1)))
-    ((= i (expt 2 8)))
-  (let ((addr
-         (uint-list->bytevector
-          (map (lambda (bit) (if (fxbit-set? i bit) 1 0))
-               (iota 8))
-          (endianness big) 2)))
-    (unless (and (equal? addr
-                         (string->ipv6 (ipv6->string addr)))
-                 (equal? (string->ipv6 (ipv6->string addr))
-                         (string->ipv6* (ipv6->string addr))))
-      (error 'blah "blah blah blah!!" addr))))
 
 (check (ipv6->string (string->ipv6 "::")) => "::")
 
@@ -75,6 +50,31 @@
 
 (check (ipv6->string (string->ipv6 "2001:db8:0:0:1:0:0:1"))
        => "2001:db8::1:0:0:1")
+
+;; This procedure only works for valid addresses: no error checking.
+(define (string->ipv6* str)
+  (let ((words (string-split str #\:))
+        (addr (make-bytevector 16 0)))
+    (let lp ((i 0) (dir 1) (words words))
+      (cond ((null? words) addr)
+            ((equal? (car words) "")
+             (lp 7 -1 (reverse (cdr words))))
+            (else
+             (pack! "!uS" addr (+ i i) (string->number (car words) 16))
+             (lp (fx+ i dir) dir (cdr words)))))))
+
+(do ((i 0 (+ i 1)))
+    ((= i (expt 2 8)))
+  (let ((addr
+         (uint-list->bytevector
+          (map (lambda (bit) (if (fxbit-set? i bit) 1 0))
+               (iota 8))
+          (endianness big) 2)))
+    (unless (and (equal? addr
+                         (string->ipv6 (ipv6->string addr)))
+                 (equal? (string->ipv6 (ipv6->string addr))
+                         (string->ipv6* (ipv6->string addr))))
+      (error 'blah "blah blah blah!!" addr))))
 
 
 (check-report)

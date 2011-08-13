@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -26,7 +26,8 @@
       ((_ g p)
        #'(let-values (((y Y) (make-dh-secret g p (bitwise-length p)))
                       ((x X) (make-dh-secret g p (bitwise-length p))))
-           (check (expt-mod X y p) => (expt-mod Y x p)))))))
+           (check (expt-mod X y p) => (expt-mod Y x p))
+           #f)))))
 
 (check-dh modp-group1-g modp-group1-p)
 (check-dh modp-group2-g modp-group2-p)

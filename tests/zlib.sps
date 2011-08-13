@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -82,6 +82,7 @@
       (lambda (zp)
         (check (get-u8 zp) => (char->integer #\())
         ;; Check that all it didn't consume all the deflate blocks
-        (check (port-position p) (=> <) (- (bytevector-length chunked) 4))))))
+        (check (port-position p) (=> <) (- (bytevector-length chunked) 4))
+        #f))))
 
 (check-report)

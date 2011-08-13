@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -394,10 +394,10 @@
   (aes-cbc-encrypt! pt 0 pt 0 (bytevector-length pt)
                     (expand-aes-key key)
                     (bytevector-copy iv))
-  (check pt => ct)
+  (let () (check pt => ct) #f)
   (aes-cbc-decrypt! pt 0 pt 0 (bytevector-length pt)
                     (reverse-aes-schedule (expand-aes-key key))
                     (bytevector-copy iv))
-  (check (utf8->string pt) => "This is a 48-byte message (exactly 3 AES blocks)"))
+  (let () (check (utf8->string pt) => "This is a 48-byte message (exactly 3 AES blocks)") #f))
 
 (check-report)

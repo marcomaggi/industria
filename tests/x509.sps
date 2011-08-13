@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -152,7 +152,7 @@ AwMvADAsAhRlVwc03dzKzF70AvRWQixe4bM7gAIUYPQxF8r0z//u9Ain2bJhvrHD
 
 (define cert1 rfc3280bis-cert1)
 
-(print-certificate cert1)
+;; (print-certificate cert1)
 (check (decipher-certificate-signature cert1 cert1)
        =>
        '(sha-1
@@ -170,7 +170,7 @@ AwMvADAsAhRlVwc03dzKzF70AvRWQixe4bM7gAIUYPQxF8r0z//u9Ain2bJhvrHD
 
 (define cert2 rfc3280bis-cert2)
 
-(print-certificate cert2)
+;; (print-certificate cert2)
 (check (validate-certificate-path (list cert1 cert2) "End Entity"
                                   (date->time-utc (make-date 0 0 0 0 24 12 2004 0))
                                   cert1)
@@ -188,20 +188,22 @@ AwMvADAsAhRlVwc03dzKzF70AvRWQixe4bM7gAIUYPQxF8r0z//u9Ain2bJhvrHD
 
 
 ;; Test CA-procedure parameter
-(parameterize ((CA-procedure
-                (lambda (issuer)
-                  (write issuer)
-                  (newline)
-                  (cond ((assq 'commonName issuer) =>
-                         (lambda (cn)
-                           (if (string=? (cdr cn) "Example CA")
-                               cert1
-                               #f)))
-                        (else #f)))))
-  (check (validate-certificate-path (list cert1 cert2) "End Entity"
-                                    (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
-         =>
-         'ok))
+(define dummy0
+  (parameterize ((CA-procedure
+                  (lambda (issuer)
+                    (write issuer)
+                    (newline)
+                    (cond ((assq 'commonName issuer) =>
+                           (lambda (cn)
+                             (if (string=? (cdr cn) "Example CA")
+                                 cert1
+                                 #f)))
+                          (else #f)))))
+    (check (validate-certificate-path (list cert1 cert2) "End Entity"
+                                      (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
+           =>
+           'ok)
+    #f))
 
 (check (validate-certificate-path (list cert1 cert2) "End Entity"
                                   (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
@@ -209,40 +211,51 @@ AwMvADAsAhRlVwc03dzKzF70AvRWQixe4bM7gAIUYPQxF8r0z//u9Ain2bJhvrHD
        'root-certificate-not-found)
 
 ;; Use current time, so the cert has expired
-(parameterize ((CA-procedure (lambda (issuer) cert1)))
-  (check (validate-certificate-path (list cert1 cert2) "End Entity")
-         =>
-         'expired))
+(define dummy1
+  (parameterize ((CA-procedure (lambda (issuer) cert1)))
+    (check (validate-certificate-path (list cert1 cert2) "End Entity")
+           =>
+           'expired)
+    #f))
 
 ;; common-name doesn't match cert1
-(parameterize ((CA-procedure (lambda (issuer) cert1)))
-  (check (validate-certificate-path (list cert1 cert2) "Example CA"
-                                    (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
-         =>
-         'bad-common-name))
-(parameterize ((CA-procedure (lambda (issuer) cert1)))
-  (check (validate-certificate-path (list cert1 cert2) "Terrible Example"
-                                    (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
-         =>
-         'bad-common-name))
+(define dummy2
+  (parameterize ((CA-procedure (lambda (issuer) cert1)))
+    (check (validate-certificate-path (list cert1 cert2) "Example CA"
+                                      (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
+           =>
+           'bad-common-name)
+    #f))
+(define dummy3
+  (parameterize ((CA-procedure (lambda (issuer) cert1)))
+    (check (validate-certificate-path (list cert1 cert2) "Terrible Example"
+                                      (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
+           =>
+           'bad-common-name)
+    #f))
 
 ;; cert1 doesn't have to be in the chain
-(parameterize ((CA-procedure (lambda (issuer) cert1)))
-  (check (validate-certificate-path (list cert2) "End Entity"
-                                    (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
-         =>
-         'ok))
+(define dummy4
+  (parameterize ((CA-procedure (lambda (issuer) cert1)))
+    (check (validate-certificate-path (list cert2) "End Entity"
+                                      (date->time-utc (make-date 0 0 0 0 24 12 2004 0)))
+           =>
+           'ok)
+    #f))
 
 ;;; DSA
 
-(display "DSA\n")
+;;(display "DSA\n")
 
-(parameterize ((CA-procedure (lambda (issuer) rfc3280-cert1)))
-  (check (validate-certificate-path (list rfc3280-cert2)
-                                    "Tim Polk"
-                                    (date->time-utc (make-date 0 0 0 0 29 11 1997 0)))
-         =>
-         'ok))
+(define dummy5
+  (parameterize ((CA-procedure (lambda (issuer) rfc3280-cert1)))
+    (check (validate-certificate-path (list rfc3280-cert2)
+                                      "Tim Polk"
+                                      (date->time-utc (make-date 0 0 0 0 29 11 1997 0)))
+           =>
+           'ok)
+    #f))
+
 
 ;;; keyUsage extension
 

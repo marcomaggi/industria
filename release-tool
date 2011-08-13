@@ -20,6 +20,7 @@
 ;; Checks documentation, runs tests, lists files, etc.
 
 (import (rnrs)
+        (rnrs eval)
         (only (srfi :1 lists) take drop-right append-map
               delete-duplicates last)
         (only (srfi :13 strings) string-prefix? string-contains string-suffix?
@@ -30,10 +31,8 @@
         (only (xitomatl file-system base compat)
               directory-list file-regular? file-directory?
               file-symbolic-link? file-size)
-        (xitomatl AS-match)
-        ;; TODO: find a portable replacement:
-        (only (ikarus) process waitpid wstatus-exit-status)
-        (only (ikarus) pretty-print))
+        (only (xitomatl common) pretty-print)
+        (xitomatl AS-match))
 
 (unless (file-exists? "documentation/industria.texinfo")
   (error 'release-tool "Could not find documentation/industria.texinfo"))
@@ -172,6 +171,16 @@
                 (_ '())))
             lines)))
       (make-document fn nodes defines))))
+
+(define (read-program pgm)
+  (assert (program? pgm))
+  (call-with-input-file (file-path pgm)
+    (lambda (p)
+      (get-line p)                      ;skip over #!/
+      (read p)                          ;skip over imports
+      (let lp ()
+        (let ((d (read p)))
+          (if (eof-object? d) '() (cons d (lp))))))))
 
 (define (find-docs start)
   (append (list (make-document "COPYING" '() '())
@@ -429,9 +438,34 @@
 ;;; Run test programs
 
 (define (run-test test record!)
-  (define (srfi-78? test)
-    (member '(srfi :78 lightweight-testing)
-            (program-imports test)))
+  ;; XXX: this has to fight the fact that Scheme "scripts" can mix
+  ;; defines with other expressions at the top level. The test
+  ;; programs are written so that they can be wrapped in (let () ...).
+  (define srfi-78
+    '((define *success* 0)
+      (define *failure* 0)
+      (define (do-check expr v e equal? =>)
+        (pretty-print expr)
+        (display =>)
+        (newline)
+        (pretty-print v)
+        (cond ((equal? v e)
+               (set! *success* (+ *success* 1))
+               (display "; Correct.\n\n"))
+              (else
+               (set! *failure* (+ *failure* 1))
+               (display "; Bad result! This is the expected result:\n")
+               (pretty-print e)
+               (display "\n\n"))))
+      (define (check-report)
+        (values *success* *failure*))
+      (define-syntax check
+        (lambda (x)
+          (syntax-case x (=>)
+            ((_ expr => expect)
+             #'(define dummy (do-check 'expr expr expect equal? '=>)))
+            ((_ expr (=> equal?) expect)
+             #'(define dummy (do-check 'test expr expect equal? '(=> equal?)))))))))
   (format #t ";;; Running ~S which uses ~a...~%"
           (file-path test)
           (string-join
@@ -440,32 +474,22 @@
                  (match-lambda (('weinholt . _) #t) (else #f))
                  (map import-name (program-imports test))))
            ", "))
-  (let-values (((pid o i e) (process (file-path test))))
-    (close-port o)
-    (let* ((output (get-bytevector-all i))
-           (ws (waitpid pid))
-           (status (wstatus-exit-status ws)))
-      (close-port e)
-      (close-port i)
-      (cond ((eof-object? output)
-             (display ";;; No program output.\n"))
+  (let ((imports (program-imports test))
+        (code (read-program test)))
+    (guard (exn
             (else
-             (let ((output (utf8->string output)))
-               (display output)
-               (when (srfi-78? test)
-                 (let* ((lines (string-split output #\newline))
-                        (checkline
-                         (find (lambda (l) (string-contains l "correct,"))
-                               (reverse lines))))
-                   (match (if checkline (string-split checkline #\space) '())
-                     ((_ ... correct "correct," failed "failed.")
-                      (record! test 'correct (string->number correct))
-                      (record! test 'failed (string->number failed)))
-                     (else
-                      (record! test 'bad-output #f))))))))
-      (unless (zero? status)
-        (record! test 'bad-status status))
-      (format #t ";;; Exit status ~s from ~s~%" status (file-path test)))))
+             (record! test 'exception exn)
+             (format #t ";;; Exception from ~s: ~s~%" (file-path test) exn)))
+      (let-values (((c f)
+                    (eval `(let ()
+                             ,@srfi-78
+                             ,@code)
+                          (apply environment
+                                 '(only (xitomatl common) pretty-print)
+                                 (remove '(srfi :78 lightweight-testing)
+                                         imports)))))
+        (record! test 'correct c)
+        (record! test 'failed f)))))
 
 (define (run-tests tests)
   (define correct 0)
@@ -479,11 +503,11 @@
          (set! failures (cons (format #f "Failed ~a tests in ~a.~%" p (file-path test))
                               failures))
          (set! failed (+ failed p))))
-      ((bad-output)
-       (set! failures (cons (format #f "Bad output from ~a.~%" (file-path test))
-                            failures)))
-      ((bad-status)
-       (set! failures (cons (format #f "Bad exit status from ~a.~%" (file-path test))
+      #;((bad-output)
+         (set! failures (cons (format #f "Bad output from ~a.~%" (file-path test))
+                              failures)))
+      ((exception)
+       (set! failures (cons (format #f "Exception from ~a: ~s.~%" (file-path test) p)
                             failures)))))
   (for-each (cut run-test <> record!)
             tests)
@@ -498,7 +522,7 @@
   "Industria is a collection of portable R6RS Scheme libraries for \
 cryptography (AES, DES, Blowfish, HMAC, MD5, SHA-1, SHA-2, RSA, DSA, \
 etc.), zip/gzip/zlib decompression, disassembly of amd64 machine code, \
-Off-The-Record messaging, bytevector pack/unpack syntax, TLS \
+SSH, Off-The-Record messaging, bytevector pack/unpack syntax, TLS \
 connections via custom binary ports, and more.")
 
 (define homepage "http://weinholt.se/industria/")

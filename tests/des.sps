@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -55,23 +55,23 @@
 
 ;; From NIST Special Publication 800-67 version 1.1,
 ;; revised 19 may 2008.
-(let ((k1 #vu8(#x01 #x23 #x45 #x67 #x89 #xAB #xCD #xEF))
-      (k2 #vu8(#x23 #x45 #x67 #x89 #xAB #xCD #xEF #x01))
-      (k3 #vu8(#x45 #x67 #x89 #xAB #xCD #xEF #x01 #x23)))
+(define k1 #vu8(#x01 #x23 #x45 #x67 #x89 #xAB #xCD #xEF))
+(define k2 #vu8(#x23 #x45 #x67 #x89 #xAB #xCD #xEF #x01))
+(define k3 #vu8(#x45 #x67 #x89 #xAB #xCD #xEF #x01 #x23))
 
-  (check (test-tdea (string->utf8 "The qufc") ;sic
-                    k1 k2 k3)
-         => (list #vu8(#xA8 #x26 #xFD #x8C #xE5 #x3B #x85 #x5F)
-                  (string->utf8 "The qufc")))
+(check (test-tdea (string->utf8 "The qufc") ;sic
+                  k1 k2 k3)
+       => (list #vu8(#xA8 #x26 #xFD #x8C #xE5 #x3B #x85 #x5F)
+                (string->utf8 "The qufc")))
 
-  (check (test-tdea (string->utf8 "k brown ")
-                    k1 k2 k3)
-         => (list #vu8(#xCC #xE2 #x1C #x81 #x12 #x25 #x6F #xE6)
-                  (string->utf8 "k brown ")))
+(check (test-tdea (string->utf8 "k brown ")
+                  k1 k2 k3)
+       => (list #vu8(#xCC #xE2 #x1C #x81 #x12 #x25 #x6F #xE6)
+                (string->utf8 "k brown ")))
   
-  (check (test-tdea (string->utf8 "fox jump")
-                    k1 k2 k3)
-         => (list #vu8(#x68 #xD5 #xC0 #x5D #xD9 #xB6 #xB9 #x00)
-                  (string->utf8 "fox jump"))))
+(check (test-tdea (string->utf8 "fox jump")
+                  k1 k2 k3)
+       => (list #vu8(#x68 #xD5 #xC0 #x5D #xD9 #xB6 #xB9 #x00)
+                (string->utf8 "fox jump")))
 
 (check-report)
