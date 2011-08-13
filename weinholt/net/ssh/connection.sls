@@ -25,12 +25,21 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20110720))
+(library (weinholt net ssh connection (1 0 20110807))
   (export register-connection
 
           make-global-request global-request?
           global-request-type
           global-request-want-reply?
+
+          make-global-request/tcpip-forward
+          global-request/tcpip-forward?
+          global-request/tcpip-forward-address
+          global-request/tcpip-forward-port
+          make-global-request/cancel-tcpip-forward
+          global-request/cancel-tcpip-forward?
+          global-request/cancel-tcpip-forward-address
+          global-request/cancel-tcpip-forward-port
 
           request-success? make-request-success request-success-data
           request-failure? make-request-failure
@@ -586,7 +595,7 @@
   (define-request-type env
     (fields (boolean want-reply?)
             (string name)
-            (string value)))
+            (bytevector value)))
 
   (define-request-type exec
     (fields (boolean want-reply?)
