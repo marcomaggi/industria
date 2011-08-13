@@ -339,7 +339,7 @@ The text of this section uses the words ``packet'', ``message'' and
 See RFC 4254 for a more detailed description of this protocol.
 
 @deffn Procedure register-connection registrar
-Registers the packet types for the connnection protocol so that they
+Registers the packet types for the connection protocol so that they
 may be received and sent. A registrar may be obtained from an ssh-conn
 object using @code{ssh-conn-registrar}.
 @end deffn
@@ -479,7 +479,7 @@ basically limits the size of @code{channel-data} and
 
 
 @deffn Procedure make-channel-open/direct-tcpip sender-id initial-window-size @
-            connect-address connnect-port originator-address originator-port
+            connect-address connect-port originator-address originator-port
 Constructs a request to open a new channel which is then connected to
 a TCP port.
 @end deffn
@@ -508,7 +508,7 @@ when a client implements forwarding of client-local TCP ports.
 
 
 @deffn Procedure make-channel-open/forwarded-tcpip sender-id initial-window-size @
-            maximum-packet-size connected-address connnected-port @
+            maximum-packet-size connected-address connected-port @
             originator-address originator-port
 This request is used by the server to tell the client that a TCP
 connection has been requested to a port for which the client sent a
@@ -523,7 +523,7 @@ Returns true if @var{obj} is a @code{channel-open/forwarded-tcpip} packet.
 The address to which the TCP connection was made.
 @end deffn
 
-@deffn Procedure channel-open/forwarded-tcpip-connnected-port pkt
+@deffn Procedure channel-open/forwarded-tcpip-connected-port pkt
 The port to which the TCP connection was made.
 @end deffn
 
@@ -937,7 +937,7 @@ Returns true if @var{obj} is a @code{channel-request/shell} packet.
 
 
 @deffn Procedure make-channel-request/signal recipient name
-Construct a packet that sends a signal to the program connnected to
+Construct a packet that sends a signal to the program connected to
 the channel identified by @var{recipient}.
 @end deffn
 
@@ -1075,7 +1075,7 @@ packet.
 Returns @code{#t} if @var{obj} is a @code{disconnect} packet.
 @end deffn
 
-@deffn Procedure disconnect-code disconnect
+@deffn Procedure disconnect-code pkt
 This field is an integer that represents the cause of the disconnect.
 The reason could be one of these (exported) constants:
 
@@ -1098,11 +1098,11 @@ The reason could be one of these (exported) constants:
 @end vtable
 @end deffn
 
-@deffn Procedure disconnect-message disconnect
+@deffn Procedure disconnect-message pkt
 This is a human-readable explanation for the disconnect.
 @end deffn
 
-@deffn Procedure disconnect-language disconnnect
+@deffn Procedure disconnect-language pkt
 Most commonly unused, @code{""}.
 @end deffn
 

@@ -25,7 +25,7 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20110807))
+(library (weinholt net ssh connection (1 0 20110813))
   (export register-connection
 
           make-global-request global-request?
@@ -50,13 +50,13 @@
 
           channel-open/direct-tcpip? make-channel-open/direct-tcpip
           channel-open/direct-tcpip-connect-address
-          channel-open/direct-tcpip-connnect-port
+          channel-open/direct-tcpip-connect-port
           channel-open/direct-tcpip-originator-address
           channel-open/direct-tcpip-originator-port
 
           channel-open/forwarded-tcpip? make-channel-open/forwarded-tcpip
           channel-open/forwarded-tcpip-connected-address
-          channel-open/forwarded-tcpip-connnected-port
+          channel-open/forwarded-tcpip-connected-port
           channel-open/forwarded-tcpip-originator-address
           channel-open/forwarded-tcpip-originator-port
                     
@@ -290,13 +290,13 @@
 
   (define-record-type channel-open/direct-tcpip
     (parent channel-open)
-    (fields connect-address connnect-port
+    (fields connect-address connect-port
             originator-address originator-port)
     (protocol (co-protocol "direct-tcpip")))
 
   (define-record-type channel-open/forwarded-tcpip
     (parent channel-open)
-    (fields connected-address connnected-port
+    (fields connected-address connected-port
             originator-address originator-port)
     (protocol (co-protocol "forwarded-tcpip")))
 
