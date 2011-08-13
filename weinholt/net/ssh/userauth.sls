@@ -21,7 +21,7 @@
 ;; RFC4256 Generic Message Exchange Authentication for the Secure
 ;; Shell Protocol (SSH)
 
-(library (weinholt net ssh userauth (1 0 20110527))
+(library (weinholt net ssh userauth (1 0 20110813))
   (export register-userauth
           register-userauth-public-key
           register-userauth-password
@@ -107,13 +107,6 @@
         ((= type 80))
       (reg type #f #f)))
 
-  (define (public-key-algorithm who pubkey)
-    (cond ((rsa-public-key? pubkey) "ssh-rsa")
-          ((dsa-public-key? pubkey) "ssh-dss")
-          (else
-           (error who "Unknown public key algorithm"
-                  pubkey))))
-
 ;;; User auth requests
 
   ;; These are used to get access to a specific service, such as the
@@ -152,7 +145,7 @@
        (case-lambda
          ((username service key)
           ((p username service "publickey")
-           (public-key-algorithm 'make-userauth-request/public-key key)
+           (ssh-public-key-algorithm 'make-userauth-request/public-key key)
            key #f))
          ((username service algorithm key sig)
           ((p username service "publickey") algorithm key sig))))))
@@ -171,7 +164,7 @@
        (case-lambda
          ((username service key)
           ((p username service "publickey")
-           (public-key-algorithm 'make-userauth-request/public-key-query key)
+           (ssh-public-key-algorithm 'make-userauth-request/public-key-query key)
            key))
          ((username service algorithm key)
           ((p username service "publickey") algorithm key))))))
@@ -286,11 +279,12 @@
   (define (parse-userauth-public-key-ok b)
     (let* ((algorithm (read-string b))
            (key (read-bytevector b)))
-      (if (member algorithm '("ssh-rsa" "ssh-dss"))
-          (make-userauth-public-key-ok algorithm
-                                       (get-ssh-public-key
-                                        (open-bytevector-input-port key)))
-          (make-userauth-public-key-ok algorithm key))))
+      (guard (exn
+              ((error? exn)
+               (make-userauth-public-key-ok algorithm key)))
+        (make-userauth-public-key-ok algorithm
+                                     (get-ssh-public-key
+                                      (open-bytevector-input-port key))))))
 
   (define (put-userauth-public-key-ok p m)
     (put-u8 p (ssh-packet-type m))
