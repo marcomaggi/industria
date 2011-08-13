@@ -17,7 +17,7 @@
 
 ;; Elliptic Curve Digital Signature Algorithm
 
-(library (weinholt crypto ec dsa (1 0 20110226))
+(library (weinholt crypto ec dsa (1 0 20110813))
   (export make-ecdsa-public-key ecdsa-public-key?
           ecdsa-public-key-curve
           ecdsa-public-key-Q
@@ -185,10 +185,18 @@
   ;; other hash algorithms could be defined in the future.
 
   (define-record-type ecdsa-sha-2-public-key
-    (parent ecdsa-public-key))
+    (parent ecdsa-public-key)
+    (protocol
+     (lambda (p)
+       (lambda x
+         ((apply p x))))))
 
   (define-record-type ecdsa-sha-2-private-key
-    (parent ecdsa-private-key))
+    (parent ecdsa-private-key)
+    (protocol
+     (lambda (p)
+       (lambda x
+         ((apply p x))))))
 
   (define (sha-2* message key)
     ;; RFC 5656, 6.2.1
