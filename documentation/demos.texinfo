@@ -8,14 +8,16 @@ If you're packaging these libraries then I would recommend against
 installing the demos in the default program search path.
 
 @menu
-* checksig::    checksig -- verifies OpenPGP signature files
-* checksum::    checksum -- computes CRCs and message digests
-* fcdisasm::    fcdisasm -- full-color disassembler
-* meircbot::    meircbot -- the minimum-effort irc bot
-* sunzip::      sunzip -- zip archive extractor
-* szip::        szip -- zip archive creator
-* tarinfo::     tarinfo -- tarball information lister
-* tls-client::  tls-client -- trivial HTTPS client
+* checksig::     checksig -- verifies OpenPGP signature files
+* checksum::     checksum -- computes CRCs and message digests
+* fcdisasm::     fcdisasm -- full-color disassembler
+* honingsburk::  honingsburk -- simple Secure Shell honey pot
+* meircbot::     meircbot -- the minimum-effort irc bot
+* secsh-client:: secsh-client -- manually operated Secure Shell client
+* sunzip::       sunzip -- zip archive extractor
+* szip::         szip -- zip archive creator
+* tarinfo::      tarinfo -- tarball information lister
+* tls-client::   tls-client -- trivial HTTPS client
 @end menu
 
 @node checksig
@@ -41,15 +43,81 @@ Originally made for the x86 disassembler, so the hexdumps for other
 architectures might not be as nice. It now also supports HC12 and
 MIPS. It handles ELF files and assumes anything else is raw x86.
 
+@node honingsburk
+@section honingsburk -- simple Secure Shell honey pot
+This demonstrates the server part of the SSH library. It starts up a
+dummy SSH server that accepts logins with the username root and the
+password toor. The server does not create a real PTY and the client
+does not gain access to the computer running the server. It presents a
+command line where all commands return an error. It uses a few
+non-standard procedures from Ikarus.
+
 @node meircbot
 @section meircbot -- the minimum-effort irc bot
 The program file contains the configuration. It doesn't do anything
 other than joining channels and being rude in private messages. Shows
 how the @code{(weinholt net irc)} library can be used. It requires
-@code{tcp-connect} and @code{(xitomatl AS-match)}.
+the @code{(xitomatl AS-match)} library.
 
 It also uses demonstrates how to use FiSH, OTR and the simple TLS
 library.
+
+@node secsh-client
+@section secsh-client -- manually operated Secure Shell client
+Most SSH clients try to provide a nice user experience. This one is
+instead a command-line based manually operated client. After
+establishing the initial connection you can use a few simplistic
+commands to login, establish a session channel, read and write channel
+data. You can also enable debugging if you'd like to see a packet
+trace. This session log shows how to connect to a @code{honingsburk}
+running on TCP port 2222:
+
+@example
+Industria SSH demo client.
+
+Connecting to localhost port 2222...
+Running key exchange...
+a6:4b:7e:05:38:03:01:29:07:0c:58:a4:fe:c1:d8:02
++---[ECDSA 521]---+
+|*++o..           |
+|ooo .            |
+|Eo   . .         |
+|o +   + .        |
+| + +   oS.       |
+|  o .  o  .      |
+|   .  o  .       |
+|     o ..        |
+|      o.         |
++-----------------+
+
+localhost ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1[...]
+Please verify the above key.
+SSH session established.
+Type help for a list of commands.
+
+localhost=> u "root"
+Your request to use ssh-userauth was accepted.
+You may try these authentication methods: (password)
+localhost=> p "toor"
+You've succesfully authenticated.
+You now have access to the SSH connection protocol.
+localhost=> s
+New session opened.
+Receive side parameters:
+ID: 0 window size: 4096 maximum packet size: 32768
+Send side parameters:
+ID: 0 window size: 32768 maximum packet size: 32768
+localhost=> t 0
+localhost=> r
+Linux darkstar 2.6.35.8 #1 Sat Oct 30 10:43:19 CEST 2010 i686
+
+Welcome to your new account!
+No mail.
+localhost=> r
+
+darkstar:~# 
+localhost=> 
+@end example
 
 @node sunzip
 @section sunzip -- zip archive extractor

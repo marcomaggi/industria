@@ -79,8 +79,8 @@ The @var{codec} is a codec, meaning the value returned by e.g.@:
 transcode the parameters.
 
 The @var{prefix} is the name of the server or client that originated
-the message. IRC clients should use #f as prefix when sending to a
-server.
+the message. IRC clients should use @code{#f} as prefix when sending
+to a server.
 
 The @var{cmd} is a symbol or string representing an IRC command, but
 it can also be an integer (which must be be between 000 and 999). Only

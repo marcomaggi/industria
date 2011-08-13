@@ -185,8 +185,6 @@ contains the peer's protocol version, software version and optionally
 some comments.
 @end deffn
 
-
-
 @deffn Procedure ssh-conn-peer-kexinit ssh-conn
 This is the peer's key exchange initialization (kexinit) packet. It
 lists the peer's supported algorithms. @xref{net ssh transport}.
@@ -265,7 +263,7 @@ not be performed too often.
 The demonstration program @code{secsh-client} contains an example of
 how to initiate key re-exchange. The server demonstration program
 @code{honingsburk} also handles key re-exchange, but does not initiate
-it.
+it. @xref{honingsburk}.
 
 @deffn Procedure build-kexinit-packet ssh-conn
 Constructs and returns a key exchange packet for use by the local
@@ -328,6 +326,16 @@ are directed to a specific channel inherit from the
 @code{channel-packet} record type and the ID can be found with the
 @code{channel-packet-recipient} procedure.
 
+Strings and bytevectors may be used interchangeably when constructing
+packets. Strings will automatically be converted with
+@code{string->utf8}. When these packets are received the parser will
+either parse those fields either as a string or a bytevector. A
+bytevector will be used when the field can contain more or less
+arbitrary data, e.g.@: filenames.
+
+The text of this section uses the words ``packet'', ``message'' and
+``request'' interchangeably.
+
 See RFC 4254 for a more detailed description of this protocol.
 
 @deffn Procedure register-connection registrar
@@ -337,18 +345,19 @@ object using @code{ssh-conn-registrar}.
 @end deffn
 
 
-
-
 @deffn Procedure make-global-request type want-reply?
-
-
-The type is a string, e.g.@: @code{"no-more-sessions@@openssh.com"}.
+Constructs a global request: a connection request not related to any
+channel. Some global requests contain additional fields. These
+requests are represented by the @code{global-request/*} packets.
 @end deffn
 
 @deffn Procedure global-request? obj
+Returns true if @var{obj} is a @code{global-request?} packet.
 @end deffn
 
 @deffn Procedure global-request-type pkt
+This field contains a string identifying the type of the request,
+e.g.@: @code{"no-more-sessions@@openssh.com"}.
 @end deffn
 
 @deffn Procedure global-request-want-reply? pkt
@@ -356,15 +365,77 @@ This field is true if the sender expects a @code{request-success} or
 @code{request-failure} record in response.
 @end deffn
 
+@deffn Procedure make-global-request/tcpip-forward want-reply? address port
+Constructs a request that instructs the server to bind a TCP server port
+and forward connections to the client.
+@end deffn
+
+@deffn Procedure global-request/tcpip-forward? obj
+Returns true if @var{obj} is a @code{global-request/tcpip-forward} packet.
+@end deffn
+
+@deffn Procedure global-request/tcpip-forward-address req
+This field is a string that represents the address to which the server
+should bind the TCP server port. Some addresses are given special meaning:
+
+@table @code
+@item ""
+The server should listen to all its addresses on all supported protocols
+(IPv4, IPV6, etc).
+@item "0.0.0.0"
+The server should listen to all its IPv4 addresses.
+@item "::"
+The server should listen to all its IPv6 addresses.
+@item "localhost"
+The server should listen to its loopback addresses on all supported
+protocols.
+@item "127.0.0.1"
+The server should listen to its IPv4 loopback address.
+@item "::1"
+The server should listen to its IPv6 loopback address.
+@end table
+@end deffn
+
+@deffn Procedure global-request/tcpip-forward-port req
+This field is an integer representing the port number to which the
+server should bind the TCP server port. If the number is @code{0} and
+@var{want-reply?} is true, the server will pick a port number and send
+it to the client in a @code{request-success} packet (the port number
+can be recovered with @code{(unpack "!L" (request-success-data
+response))}).
+@end deffn
+
+
+@deffn Procedure make-global-request/cancel-tcpip-forward want-reply? address port
+Constructs a message that undoes the effect of a
+@code{global-request/tcpip-forward} request.
+@end deffn
+
+@deffn Procedure global-request/cancel-tcpip-forward? obj
+Returns true if @var{obj} is a @code{global-request/cancel-tcpip-forward} packet.
+@end deffn
+
+@deffn Procedure global-request/cancel-tcpip-forward-address req
+See @code{global-request/tcpip-forward-address}.
+@end deffn
+
+@deffn Procedure global-request/cancel-tcpip-forward-port req
+See @code{global-request/tcpip-forward-port}.
+@end deffn
+
 
 @deffn Procedure make-request-success data
+Constructs a packet which indicates that the previous
+@code{global-request} was successful.
 @end deffn
 
 @deffn Procedure request-success? obj
+Returns true if @var{obj} is a @code{request-success} packet.
 @end deffn
 
 @deffn Procedure request-success-data pkt
-This field contains request-specific data, but is mostly empty.
+This field contains a request-specific bytevector which is mostly
+empty.
 @end deffn
 
 
@@ -373,101 +444,148 @@ Returns an object which indicates that a global request failed.
 @end deffn
 
 @deffn Procedure request-failure? obj
+Returns true if @var{obj} is a @code{request-failure} packet.
 @end deffn
 
 
+All requests to open a channel are represented by
+@code{channel-open/*} packets.
 
 @deffn Procedure channel-open? obj
+Returns true if @var{obj} is a @code{channel-open} packet.
 @end deffn
 
 @deffn Procedure channel-open-type pkt
+A string representing the type of the @code{channel-open} request,
+e.g.@: @code{"session"}.
 @end deffn
 
 @deffn Procedure channel-open-sender pkt
+This is the ID for the sender side of the channel.
 @end deffn
 
 @deffn Procedure channel-open-initial-window-size pkt
+This is the window size of the channel. The window size is used for
+flow-control and it decreases when data is sent over the channel and
+increases when a @code{channel-window-adjust} packet is sent. Each
+side of a channel has a window size.
 @end deffn
 
 @deffn Procedure channel-open-maximum-packet-size pkt
+This is the maximum allowed packet size for data sent to a channel. It
+basically limits the size of @code{channel-data} and
+@code{channel-extended-data} packets.
 @end deffn
 
 
-@deffn Procedure make-channel-open/direct-tcpip type sender-id initial-window-size @
+@deffn Procedure make-channel-open/direct-tcpip sender-id initial-window-size @
             connect-address connnect-port originator-address originator-port
+Constructs a request to open a new channel which is then connected to
+a TCP port.
 @end deffn
 
 @deffn Procedure channel-open/direct-tcpip? obj
+Returns true if @var{obj} is a @code{channel-open/direct-tcpip} packet.
 @end deffn
 
 @deffn Procedure channel-open/direct-tcpip-connect-address pkt
+This is the hostname or network address that the TCP connection should
+be connected to.
 @end deffn
 
-@deffn Procedure channel-open/direct-tcpip-connnect-port pkt
+@deffn Procedure channel-open/direct-tcpip-connect-port pkt
+This is the port number that the TCP connection should be connected to.
 @end deffn
 
 @deffn Procedure channel-open/direct-tcpip-originator-address pkt
+This is the network address of the machine that made the request.
 @end deffn
 
 @deffn Procedure channel-open/direct-tcpip-originator-port pkt
+This is the port number on which the request was made. This is useful
+when a client implements forwarding of client-local TCP ports.
 @end deffn
 
 
-@deffn Procedure make-channel-open/forwarded-tcpip type sender-id initial-window-size @
+@deffn Procedure make-channel-open/forwarded-tcpip sender-id initial-window-size @
             maximum-packet-size connected-address connnected-port @
             originator-address originator-port
+This request is used by the server to tell the client that a TCP
+connection has been requested to a port for which the client sent a
+@code{global-request/tcpip-forward} request.
 @end deffn
 
 @deffn Procedure channel-open/forwarded-tcpip? obj
+Returns true if @var{obj} is a @code{channel-open/forwarded-tcpip} packet.
 @end deffn
 
 @deffn Procedure channel-open/forwarded-tcpip-connected-address pkt
+The address to which the TCP connection was made.
 @end deffn
 
 @deffn Procedure channel-open/forwarded-tcpip-connnected-port pkt
+The port to which the TCP connection was made.
 @end deffn
 
 @deffn Procedure channel-open/forwarded-tcpip-originator-address pkt
+The remote address of the TCP connection.
 @end deffn
 
 @deffn Procedure channel-open/forwarded-tcpip-originator-port pkt
+The remote port of the TCP connection.
 @end deffn
 
 
 
-@deffn Procedure make-channel-open/session type sender-id initial-window-size @
+@deffn Procedure make-channel-open/session sender-id initial-window-size @
             maximum-packet-size
+Construct a request to open a session channel. This type of channel is
+used for interactive logins, remote command execution, etc. After the
+channel has been established the client will send e.g.@: a
+@code{channel-request/shell} or a @code{channel-request/exec} request.
 @end deffn
 
 @deffn Procedure channel-open/session? obj
+Returns true if @var{obj} is a @code{channel-open/session} packet.
 @end deffn
 
 
 @deffn Procedure make-channel-open/x11 type sender-id initial-window-size @
             maximum-packet-size originator-address originator-port
+Constructs a message that opens an X11 channel. This message can be
+sent after X11 forwarding has been requested.
 @end deffn
 
 @deffn Procedure channel-open/x11? obj
+Returns true if @var{obj} is a @code{channel-open/x11} packet.
 @end deffn
 
 @deffn Procedure channel-open/x11-originator-address pkt
+The network address that originated the X11 connection.
 @end deffn
 
 @deffn Procedure channel-open/x11-originator-port pkt
+The network port that originated the X11 connection.
 @end deffn
 
 
 @deffn Procedure channel-packet? obj
+Returns true if @var{obj} is a @code{channel-packet} packet.
 @end deffn
 
 @deffn Procedure channel-packet-recipient pkt
+This field is an integer that identifies the ID of the channel that
+should receive the request.
 @end deffn
 
 
 @deffn Procedure make-channel-open-failure recipient reason-code description language
+Constructs a packet that represents a failure to open a channel. It is
+sent in response to a @code{channel-open/*} request.
 @end deffn
 
 @deffn Procedure channel-open-failure? obj
+Returns true if @var{obj} is a @code{channel-open-failure} packet.
 @end deffn
 
 @deffn Procedure channel-open-failure-reason-code pkt
@@ -480,90 +598,141 @@ Returns an object which indicates that a global request failed.
 @end deffn
 
 @deffn Procedure channel-open-failure-description pkt
+This field is a human-readable reason for why the channel could not be
+opened.
 @end deffn
 
 @deffn Procedure channel-open-failure-language pkt
+This field is most commonly unused and set to @code{""}.
 @end deffn
 
 
-@deffn Procedure make-channel-open-confirmation recipient @ 
+@deffn Procedure make-channel-open-confirmation recipient @
             sender initial-window-size maximum-packet-size
+Constructs a message that indicates a channel was successfully opened
+(identified by @var{recipient}). The party that sends this message
+will include its own channel ID (@code{sender}).
 @end deffn
 
 @deffn Procedure channel-open-confirmation? obj
+Returns true if @var{obj} is a @code{channel-open-confirmation} packet.
 @end deffn
 
 @deffn Procedure channel-open-confirmation-sender pkt
+This field contains the sender's ID for this channel.
 @end deffn
 
 @deffn Procedure channel-open-confirmation-initial-window-size pkt
+This is the sender's initial window size. Analogous to the initial
+window size in a @code{channel-open/*} request.
 @end deffn
 
 @deffn Procedure channel-open-confirmation-maximum-packet-size pkt
+This is the sender's maximum packet size. Analogous to the maximum
+packet size in a @code{channel-open/*} request.
 @end deffn
 
 
 @deffn Procedure make-channel-window-adjust recipient amount
+This constructs a packet that is used to increment the window size of
+channel @var{recipient} by @var{amount} octets. It tells the remote
+part that the channel may receive additional data. If the client has
+assigned to a channel a receive buffer of 4096 bytes and the server
+sends 4096 bytes, the server will not be able to successfully send
+more data until the client has processed some of the buffer. When
+there is more room in the buffer the client can send a message of this
+type.
 @end deffn
 
 @deffn Procedure channel-window-adjust? obj
+Returns true if @var{obj} is a @code{channel-window-adjust} packet.
 @end deffn
 
 @deffn Procedure channel-window-adjust-amount pkt
+This field contains the number of bytes that will be added to the
+window size.
 @end deffn
 
 
 @deffn Procedure make-channel-data recipient value
+This constructs a request that sends data over a channel. 
 @end deffn
 
 @deffn Procedure channel-data? obj
+Returns true if @var{obj} is a @code{channel-data} packet.
 @end deffn
 
 @deffn Procedure channel-data-value pkt
+This field contains a bytevector with data being sent over the
+channel.
 @end deffn
 
 
 @deffn Procedure make-channel-extended-data recipient type value
+This constructs a message that works just like @code{channel-data},
+except it contains an additional @var{type} field (explained below).
 @end deffn
 
 @deffn Procedure channel-extended-data? obj
+Returns true if @var{obj} is a @code{channel-extended-data} packet.
 @end deffn
 
 @deffn Procedure channel-extended-data-type pkt
+Data sent by a @code{channel-data} packet will normally be sent to a
+port connected with standard output. A @code{channel-extended-data}
+field is used when the data destination is a different port.
+
 @vtable @code
 @item SSH-EXTENDED-DATA-STDERR
+This constant specifies that the destination is the standard error
+port.
 @end vtable
 @end deffn
 
 @deffn Procedure channel-extended-data-value pkt
+This field contains a bytevector with the data sent over the channel,
+e.g.@: an error message printed on the standard error port.
 @end deffn
 
 
 @deffn Procedure make-channel-eof recipient
+This constructs a packet that signals the end-of-file condition on the
+channel identified by the @code{recipient} ID.
 @end deffn
 
 @deffn Procedure channel-eof? obj
+Returns true if @var{obj} is a @code{channel-eof} packet.
 @end deffn
 
 
 @deffn Procedure make-channel-close recipient
+This constructs a message that is used when a channel is closed.
 @end deffn
 
 @deffn Procedure channel-close? obj
+Returns true if @var{obj} is a @code{channel-close} packet.
 @end deffn
 
 
 @deffn Procedure make-channel-success recipient
+This constructs a packet that indicates that the previous request was
+successful. These packets are sent in response to requests where
+@var{want-reply?} is true.
 @end deffn
 
 @deffn Procedure channel-success? obj
+Returns true if @var{obj} is a @code{channel-success} packet.
 @end deffn
 
 
 @deffn Procedure make-channel-failure recipient
+This constructs a packet that indicates that the previous request was
+not successful. These packets are sent in response to requests where
+@var{want-reply?} is true.
 @end deffn
 
 @deffn Procedure channel-failure? obj
+Returns true if @var{obj} is a @code{channel-failure} packet.
 @end deffn
 
 
@@ -571,184 +740,304 @@ Returns an object which indicates that a global request failed.
 @c @end deffn
 
 @deffn Procedure channel-request? obj
+Returns true if @var{obj} is a @code{channel-request} packet.
 @end deffn
 
 @deffn Procedure channel-request-type req
+This field is a string that identifies the type of the request, e.g.@:
+@code{"break"} or @code{"shell"}.
 @end deffn
 
 @deffn Procedure channel-request-want-reply? req
+When this field is true the peer will respond with
+@code{channel-success} or @code{channel-failure}. This field is not
+valid for all requests. Where it is not valid the constructor will not
+include it as an argument.
 @end deffn
 
 
 @deffn Procedure make-channel-request/break recipient want-reply? length
+This constructs a request that relays a ``BREAK'' signal on the
+channel. A ``BREAK'' is a signalling mechanism used with serial
+consoles. This request is standardized by RFC 4335.
 @end deffn
 
 @deffn Procedure channel-request/break? obj
+Returns true if @var{obj} is a @code{channel-request/break} packet.
 @end deffn
 
 @deffn Procedure channel-request/break-length req
+The length of the signal in milliseconds.
 @end deffn
 
 
 @deffn Procedure make-channel-request/env recipient want-reply? name value
+Constructs a request that can be used before a shell or command has
+been started. It is used to set an environment variable (of the same
+kind that SRFI-98 accesses).
 @end deffn
 
 @deffn Procedure channel-request/env? obj
+Returns true if @var{obj} is a @code{channel-request/env} packet.
 @end deffn
 
 @deffn Procedure channel-request/env-name req
+This is a string that identifies the name of the environment variable.
 @end deffn
 
 @deffn Procedure channel-request/env-value req
+This is a bytevector that contains the value of the environment
+variable.
 @end deffn
 
 
 @deffn Procedure make-channel-request/exec recipient want-reply? command
+Constructs a request that instructs the server to execute a command.
+The channel identified by @var{recipient} will be connected to the
+standard input and output ports of the program started by the server.
 @end deffn
 
 @deffn Procedure channel-request/exec? obj
+Returns true if @var{obj} is a @code{channel-request/exec} packet.
 @end deffn
 
 @deffn Procedure channel-request/exec-command req
+This field is a bytevector that contains the command that the server
+should try to execute.
 @end deffn
 
 
 @deffn Procedure make-channel-request/exit-signal recipient name core-dumped? @
             message language
+This constructs a packet which indicates that the program connected
+to the channel identified by @var{recipient} has exited due to an
+operating system signal.
 @end deffn
 
 @deffn Procedure channel-request/exit-signal? obj
+Returns true if @var{obj} is a @code{channel-request/exit-signal} packet.
 @end deffn
 
 @deffn Procedure channel-request/exit-signal-name req
+This is a string that identifies the signal by name. For @sc{posix}
+systems it is one of the following: @code{"ABRT"}, @code{"ALRM"},
+@code{"FPE"}, @code{"HUP"}, @code{"ILL"}, @code{"INT"}, @code{"KILL"},
+@code{"PIPE"}, @code{"QUIT"}, @code{"SEGV"}, @code{"TERM"},
+@code{"USR1"}, @code{"USR2"}. Other signal names may be used by
+following the guidelines in section 6.10 of RFC 4254.
 @end deffn
 
 @deffn Procedure channel-request/exit-signal-core-dumped? req
+This field is true when the operating system saved a process image
+(``core dump'') when it sent the signal.
 @end deffn
 
 @deffn Procedure channel-request/exit-signal-message req
+This may be a string that explains the signal.
 @end deffn
 
 @deffn Procedure channel-request/exit-signal-language req
+This string may identify the language used in
+@code{channel-request/exit-signal-message}.
 @end deffn
 
 
 @deffn Procedure make-channel-request/exit-status recipient value
+This constructs a packet which indicates that the program connected
+to the channel identified by @var{recipient} has exited voluntarily.
 @end deffn
 
 @deffn Procedure channel-request/exit-status? obj
+Returns true if @var{obj} is a @code{channel-request/exit-status} packet.
 @end deffn
 
 @deffn Procedure channel-request/exit-status-value req
+This is an integer that identifies the exit status of the program. It
+is the same kind of number used by the the Scheme procedure
+@code{exit}.
 @end deffn
 
 
 @deffn Procedure make-channel-request/pty-req recipient want-reply? term columns rows @
             width height modes
+Constructs a request that instructs the server to allocate a
+pseudo-terminal (PTY) for the channel @var{(identified by recipient)}.
+A PTY is needed for interactive programs, such as shells and Emacs.
 @end deffn
 
 @deffn Procedure channel-request/pty-req? obj
+Returns true if @var{obj} is a @code{channel-request/pty-req} packet.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-term req
+This is a string that identifies the type of terminal that this PTY
+will be connected to. If the terminal is compatible with the DEC VT100
+the value would be @code{"vt100"}. This value is also the environment
+variable @code{TERM}. The set of supported terminal types depends on
+the server. Typically the software running on an SSH server uses the
+``terminfo'' database.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-columns req
+This field contains the number of columns the terminal supports, e.g.@:
+@code{80}. The @code{channel-request/window-change} request can be
+used to update this value if the terminal supports resizing.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-rows req
+This field contains the number of rows the terminal supports, e.g.
+@code{24}.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-width req
+This field specifies the width of the terminal in pixels.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-height req
+This field specifies the height of the terminal in pixels.
 @end deffn
 
 @deffn Procedure channel-request/pty-req-modes req
+This is a bytevector that encodes POSIX terminal modes. Unlike the
+size of the terminal, it is not possible to change the modes after the
+PTY has been created. The client should emulate a terminal set to
+``raw'' mode and send a correct list of terminal modes. The server
+will then cooperate to handle the rest. This means that, unlike with
+telnet, the client will generally not do local ``canonical'' terminal
+processing.
 @end deffn
 
 
 @deffn Procedure bytevector->terminal-modes bv
+Decodes the modes from a @code{channel-request/pty-req}. The return
+value is an association list.
 @end deffn
 
 @deffn Procedure terminal-modes->bytevector modes
+The inverse of @code{bytevector->terminal-modes}. All modes specified
+by RFC 4254 can be encoded.
+
+@example
+(import (weinholt net ssh connection))
+(terminal-modes->bytevector '((VINTR . 3) (VERASE . 127)))
+@result{} #vu8(1 0 0 0 3 3 0 0 0 127 0)
+@end example
 @end deffn
 
 
 @deffn Procedure make-channel-request/shell recipient want-reply?
+Constructs a request that starts a login shell on the channel
+identified by @var{recipient}. Normally a PTY must first have been
+connected to the channel.
 @end deffn
 
 @deffn Procedure channel-request/shell? obj
+Returns true if @var{obj} is a @code{channel-request/shell} packet.
 @end deffn
 
 
 @deffn Procedure make-channel-request/signal recipient name
+Construct a packet that sends a signal to the program connnected to
+the channel identified by @var{recipient}.
 @end deffn
 
 @deffn Procedure channel-request/signal? obj
+Returns true if @var{obj} is a @code{channel-request/signal} packet.
 @end deffn
 
 @deffn Procedure channel-request/signal-name req
+This field contains a signal name of the same type as that used by
+@code{channel-request/exit-signal}.
 @end deffn
 
 
 @deffn Procedure make-channel-request/subsystem recipient want-reply? name
+Constructs a request that a subsystem should be connected to the
+channel identified by @var{recipient}.
 @end deffn
 
 @deffn Procedure channel-request/subsystem? obj
+Returns true if @var{obj} is a @code{channel-request/subsystem} packet.
 @end deffn
 
 @deffn Procedure channel-request/subsystem-name req
+This field identifies the subsystem being requested, e.g.@: @code{"sftp"}.
 @end deffn
 
 
 @deffn Procedure make-channel-request/window-change recipient columns rows width height
+Construct a message that tells the server that the terminal window
+associated with a channel has been resized. The channel should have a
+PTY (see @code{channel-request/pty-req}).
 @end deffn
 
 @deffn Procedure channel-request/window-change? obj
+Returns true if @var{obj} is a @code{channel-request/window-change} packet.
 @end deffn
 
 @deffn Procedure channel-request/window-change-columns req
+Contains the new character cell width of the terminal window.
 @end deffn
 
 @deffn Procedure channel-request/window-change-rows req
+Contains the new character cell height of the terminal window.
 @end deffn
 
 @deffn Procedure channel-request/window-change-width req
+Contains the new pixel width of the terminal window.
 @end deffn
 
 @deffn Procedure channel-request/window-change-height req
+Contains the new pixel height of the terminal window.
 @end deffn
 
 
 @deffn Procedure make-channel-request/x11-req recipient want-reply? single-connection? @
             protocol cookie screen
+Constructs an X11 (X Window System) forwarding request.
 @end deffn
 
 @deffn Procedure channel-request/x11-req? obj
+Returns true if @var{obj} is a @code{channel-request/x11-req} packet.
 @end deffn
 
 @deffn Procedure channel-request/x11-req-single-connection? req
+If this field is true when only one X11 connection should be
+forwarded.
 @end deffn
 
 @deffn Procedure channel-request/x11-req-protocol req
+This field identifies an X11 authentication protocol. The most common
+value is @code{"MIT-MAGIC-COOKIE-1"}.
 @end deffn
 
 @deffn Procedure channel-request/x11-req-cookie req
+This is a ``magic cookie'' encoded as a hexadecimal string. It is used
+with @code{"MIT-MAGIC-COOKIE-1"}. It is recommended by RFC 4254 that
+this cookie should be different from the actual cookie used by the X11
+server. When receiving a @code{channel-open/x11} request the cookie
+can be intercepted, verified and replaced with the real one.
 @end deffn
 
 @deffn Procedure channel-request/x11-req-screen req
+An X11 display can have, in X jargon, multiple screens. Normally this
+field would be @code{0}.
 @end deffn
 
 
 @deffn Procedure make-channel-request/xon-xoff recipient client-can-do?
+Constructs a message that tells the client when it can do local
+processing of terminal flow control (C-s and C-q).
 @end deffn
 
 @deffn Procedure channel-request/xon-xoff? obj
+Returns true if @var{obj} is a @code{channel-request/xon-xoff} packet.
 @end deffn
 
 @deffn Procedure channel-request/xon-xoff-client-can-do? req
+This flag is true if the client is allowed to do local processing of
+terminal flow control. If the flag is false then flow control is done
+on the server.
 @end deffn
 
 
@@ -775,6 +1064,11 @@ received and sent. A registrar may be obtained using
 @end deffn
 
 @deffn Procedure make-disconnect code message language
+Constructs a packet that closes the SSH connection. After sending or
+receiving this message the connection should be closed with
+@code{close-ssh}. The @code{ssh-error} procedure may be more
+convenient than manually constructing and sending a @code{disconnect}
+packet.
 @end deffn
 
 @deffn Procedure disconnect? obj
@@ -782,6 +1076,9 @@ Returns @code{#t} if @var{obj} is a @code{disconnect} packet.
 @end deffn
 
 @deffn Procedure disconnect-code disconnect
+This field is an integer that represents the cause of the disconnect.
+The reason could be one of these (exported) constants:
+
 @vtable @code
 @item SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT
 @item SSH-DISCONNECT-PROTOCOL-ERROR
@@ -802,9 +1099,11 @@ Returns @code{#t} if @var{obj} is a @code{disconnect} packet.
 @end deffn
 
 @deffn Procedure disconnect-message disconnect
+This is a human-readable explanation for the disconnect.
 @end deffn
 
 @deffn Procedure disconnect-language disconnnect
+Most commonly unused, @code{""}.
 @end deffn
 
 
@@ -818,55 +1117,71 @@ to make traffic analysis more difficult.
 Returns @code{#t} if @var{obj} is an @code{ignore} packet.
 @end deffn
 
-
-
 @deffn Procedure make-unimplemented sequence-number
+This constructs a message that should be sent when a received packet
+type is not implemented.
 @end deffn
 
 @deffn Procedure unimplemented? obj
 Returns @code{#t} if @var{obj} is an @code{unimplemented} packet.
 @end deffn
 
-@deffn Procedure unimplemented-sequence-number unimplemented
+@deffn Procedure unimplemented-sequence-number pkt
+Each packet sent over an SSH connection is given an implicit sequence
+number. This field exactly identifies one SSH packet.
 @end deffn
 
 
 @deffn Procedure make-debug always-display? message language
+Constructs a debug packet. It contains a message that a client or
+server may optionally display to the user.
 @end deffn
 
 @deffn Procedure debug? obj
 Returns @code{#t} if @var{obj} is a @code{debug} packet.
 @end deffn
 
-@deffn Procedure debug-always-display? debug
+@deffn Procedure debug-always-display? pkt
+If this field is true then the message should be displayed.
 @end deffn
 
-@deffn Procedure debug-message debug
+@deffn Procedure debug-message pkt
+This is a string containing the debugging message. If it is displayed
+to the user it should first be filtered.
 @end deffn
 
-@deffn Procedure debug-language debug
+@deffn Procedure debug-language pkt
+Most commonly unused, @code{""}.
 @end deffn
 
 
 @deffn Procedure make-service-request name
+This constructs a service request packet. The first service requested
+is normally @code{"ssh-userauth"}. @xref{net ssh userauth}.
 @end deffn
 
 @deffn Procedure service-request? obj
 Returns @code{#t} if @var{obj} is a @code{service-request} packet.
 @end deffn
 
-@deffn Procedure service-request-name service-request
+@deffn Procedure service-request-name pkt
+This is the name of the service being requested, e.g.
+@code{"ssh-userauth"}.
 @end deffn
 
 
 @deffn Procedure make-service-accept name
+Constructs a request which indicates that access to a requested
+service was granted.
 @end deffn
 
 @deffn Procedure service-accept? obj
 Returns @code{#t} if @var{obj} is a @code{service-accept} packet.
 @end deffn
 
-@deffn Procedure service-accept-name service-accept
+@deffn Procedure service-accept-name pkt
+This field contains the name of the service to which access was
+granted.
 @end deffn
 
 @c Used privately:
@@ -880,54 +1195,84 @@ Returns @code{#t} if @var{obj} is a @code{service-accept} packet.
             compression-algorithms-server-to-client @
             languages-client-to-server languages-server-to-client @
             first-kex-packet-follows? reserved
+Constructs a @code{kexinit} packet, which is used as part of the key
+exchange algorithm. The arguments are explained below. You probably
+want to use @code{build-kexinit-packet} instead of this procedure.
 @end deffn
 
 @deffn Procedure kexinit? obj
 Returns @code{#t} if @var{obj} is a @code{kexinit} packet.
 @end deffn
 
-@deffn Procedure kexinit-cookie kexinit
+@deffn Procedure kexinit-cookie pkt
+This field is a random bytevector. It is used in the key exchange to
+make things more difficult for an attacker.
 @end deffn
 
-@deffn Procedure kexinit-kex-algorithms kexinit
+@deffn Procedure kexinit-kex-algorithms pkt
+A list of the supported key exchange algorithms (mostly variations on
+Diffie-Hellman).
 @end deffn
 
-@deffn Procedure kexinit-server-host-key-algorithms kexinit
+@deffn Procedure kexinit-server-host-key-algorithms pkt
+A list of the supported host key algorithms.
 @end deffn
 
-@deffn Procedure kexinit-encryption-algorithms-client-to-server kexinit
+@deffn Procedure kexinit-encryption-algorithms-client-to-server pkt
+A list of the supported encryption algorithms for packets sent from
+the client to the server.
 @end deffn
 
-@deffn Procedure kexinit-encryption-algorithms-server-to-client kexinit
+@deffn Procedure kexinit-encryption-algorithms-server-to-client pkt
+A list of the supported encryption algorithms for packets sent from
+the server to the client.
 @end deffn
 
-@deffn Procedure kexinit-mac-algorithms-client-to-server kexinit
+@deffn Procedure kexinit-mac-algorithms-client-to-server pkt
+A list of the supported Message Authentication Code (MAC) algorithms
+for packets sent from the client to the server.
 @end deffn
 
-@deffn Procedure kexinit-mac-algorithms-server-to-client kexinit
+@deffn Procedure kexinit-mac-algorithms-server-to-client pkt
+A list of the supported Message Authentication Code (MAC) algorithms
+for packets sent from the server to the client.
 @end deffn
 
-@deffn Procedure kexinit-compression-algorithms-client-to-server kexinit
+@deffn Procedure kexinit-compression-algorithms-client-to-server pkt
+A list of the supported compression algorithms for packets sent from
+the client to the server. The algorithm @code{"none"} is currently the
+only implemented compression algorithm.
 @end deffn
 
-@deffn Procedure kexinit-compression-algorithms-server-to-client kexinit
+@deffn Procedure kexinit-compression-algorithms-server-to-client pkt
+A list of the supported compression algorithms for packets sent from
+the server to the client. The algorithm @code{"none"} is currently the
+only implemented compression algorithm.
 @end deffn
 
-@deffn Procedure kexinit-languages-client-to-server kexinit
+@deffn Procedure kexinit-languages-client-to-server pkt
+Normally never used. Set to the empty list.
 @end deffn
 
-@deffn Procedure kexinit-languages-server-to-client kexinit
+@deffn Procedure kexinit-languages-server-to-client pkt
+Normally never used. Set to the empty list.
 @end deffn
 
-@deffn Procedure kexinit-first-kex-packet-follows? kexinit
+@deffn Procedure kexinit-first-kex-packet-follows? pkt
+If this field is true then the server and client will try to cooperate
+in order to make the key exchange run faster over connections with
+high latency. This optimization only works when the server and client
+both prefer the same algorithms.
 @end deffn
 
-@deffn Procedure kexinit-reserved kexinit
+@deffn Procedure kexinit-reserved pkt
+This field must be zero.
 @end deffn
-
 
 @deffn Procedure make-newkeys
-Constructs a new @code{newkeys} packet.
+Constructs a new @code{newkeys} packet. This message is used as part
+of key exchange to notify the remote side that new encryption keys are
+being used.
 @end deffn
 
 @deffn Procedure newkeys? obj
@@ -949,11 +1294,16 @@ The @code{(weinholt net ssh userauth)} library implements record
 types, parsers and formatters for the authentication protocol packets
 in SSH.
 
-See RFC 4252 for a description of this protocol. In this protocol the
-client sends packets of type @code{userauth-request}. The type names
-that start with @code{userauth-request/} are sub-types that contain
-user credentials. All other packet types documented here are sent by
-the server.
+See RFC 4252 for a more detailed description of this protocol. In this
+protocol the client sends packets of type @code{userauth-request}. The
+type names that start with @code{userauth-request/} are sub-types that
+contain user credentials. All other packet types documented here are
+sent by the server.
+
+All user authentication requests contain a user name, a service name
+and a method name. The service name most commonly used is
+@code{"ssh-connection"}, which requests access to the connection
+protocol. @xref{net ssh connection}.
 
 @deffn Procedure register-userauth registrar
 Registers the packet types for the authentication protocol so that
@@ -977,57 +1327,92 @@ Deregisters all authentication protocol packet types.
 
 
 @deffn Procedure make-userauth-request username service method
+Constructs a new user authentication request. This particular
+procedure is only good for constructing requests that use the
+@code{"none"} method. When such a request is sent to the server it
+will respond with a list of available authentication methods. To make
+a proper request use one of the @code{make-userauth-request/*}
+procedures below. Those procedures automatically include the correct
+@var{method} in the request. The @var{service} is normally
+@code{"ssh-connection"}. @xref{net ssh connection}.
 @end deffn
 
 @deffn Procedure userauth-request? obj
+Returns true if @var{obj} is a @code{userauth-request} packet. This
+includes @code{userauth-request/password} packets, and so on.
 @end deffn
 
 @deffn Procedure userauth-request-username request
+This returns the user name field of @var{request}.
 @end deffn
 
 @deffn Procedure userauth-request-service request
+This returns the service name field of @var{request}.
 @end deffn
 
 @deffn Procedure userauth-request-method request
+This returns the method name field of @var{request}. Examples include
+@code{"none"}, @code{"password"} and @code{"publickey"}.
 @end deffn
 
 If the server does not like the credentials provided in a
 @code{userauth-request} it will send a @code{userauth-failure} packet.
 
 @deffn Procedure make-userauth-failure can-continue partial?
+Constructs a message that indicates to the client that the user
+authentication request was not successful.
 @end deffn
 
 @deffn Procedure userauth-failure? obj
+Returns true if @var{obj} is a @code{userauth-failure} packet. These
+packets indicate the the client was denied access to the requested
+service. The credentials might be incorrect or the server might be
+requesting additional authentication requests (see below).
 @end deffn
 
 @deffn Procedure userauth-failure-can-continue failure
+This returns a list of authentication methods that ``can continue'',
+i.e.@: methods that might be successful given that correct credentials
+are provided.
 @end deffn
 
 @deffn Procedure userauth-failure-partial? failure
+This is a boolean that indicates partial success. The server might
+require multiple successful authentication requests (see RFC 4252).
 @end deffn
 
-The server sends @code{userauth-success} to indicate that
-authentication was successful. This message has no fields.
 
 @deffn Procedure make-userauth-success
+Constructs a packet that indicates to the client that the user
+authentication was successful. The client can now use the requested
+service (e.g.@: the connection protocol). This message has no fields.
 @end deffn
 
 @deffn Procedure userauth-success? obj
+Returns true if @var{obj} is a @code{userauth-success} packet.
 @end deffn
 
 The server can send a banner before the user authenticates. The banner
 might often contain a warning about unauthorized access.
 
 @deffn Procedure make-userauth-banner message language
+This constructs a textual message that the server can send to the
+client. The client software can then display it to the user. This
+happens before user authentication is attempted and often contains a
+warning about unauthorized accesss.
 @end deffn
 
 @deffn Procedure userauth-banner? obj
+Returns true if @var{obj} is a @code{userauth-banner} packet.
 @end deffn
 
 @deffn Procedure userauth-banner-message banner
+This field is a message that the client can show to the user.
 @end deffn
 
 @deffn Procedure userauth-banner-language banner
+This field might indicate the language of the text in the banner, but
+is most commonly empty and not used.
 @end deffn
 
 The client can try to authenticate with a password. Note that the
@@ -1035,95 +1420,142 @@ unencrypted password is seen by the server. It's important to check
 hosts keys to make sure you're connecting to the right server.
 
 @deffn Procedure make-userauth-request/password username service password
+Constructs a user authentication request. This is a normal attempt to
+login with a user name and password. There is an alternative protocol
+for these types of login requests: the @code{"keyboard-interactive"}
+method (support is planned).
 @end deffn
 
 @deffn Procedure userauth-request/password? obj
+Returns true if @var{obj} is a @code{userauth-request/password}
+packet.
 @end deffn
 
 @deffn Procedure userauth-request/password-value request
+Returns the password field for this user authentication request.
 @end deffn
 
 The server can request that the client should change its password.
 
 @deffn Procedure make-userauth-password-changereq prompt language
+This constructs a password change request. Some servers might send
+this packet if e.g.@: they use a password expiry system.
 @end deffn
 
 @deffn Procedure userauth-password-changereq? obj
+Returns true if @var{obj} is a @code{userauth-request/changereq}
+packet.
 @end deffn
 
 @deffn Procedure userauth-password-changereq-prompt changereq
+This is the message to show the user when prompting for the new
+password.
 @end deffn
 
 @deffn Procedure userauth-password-changereq-language changereq
+This is the language used in the password change request prompt.
 @end deffn
 
-After having received a request to change its password, a client may
-do so.
+After having received a request to change its password a client may
+send a @code{userauth-request/password-change} packet.
 
 @deffn Procedure make-userauth-request/password-change username service old new
+Constructs a request to authenticate the user and at the same time
+change the user's password. This message may be sent without having
+received a @code{userauth-request/changereq} packet. Please see
+section 8 of RFC 4252 for the meaning of the packet that the server
+will send in response to this packet.
 @end deffn
 
 @deffn Procedure userauth-request/password-change? obj
+Returns true if @var{obj} is a @code{userauth-request/password-change}
+packet.
 @end deffn
 
 @deffn Procedure userauth-request/password-change-old request
+This field contains the user's current password.
 @end deffn
 
 @deffn Procedure userauth-request/password-change-new request
+This field contains the user's new password.
 @end deffn
 
+
+@deffn Procedure make-userauth-request/public-key-query username service key
 Before performing a potentially expensive private key operation the
 client may ask the server if a specific key might be used to
 authenticate.
-
-@deffn Procedure make-userauth-request/public-key-query username service key
 @end deffn
 
 @deffn Procedure userauth-request/public-key-query? obj
+Returns true if @var{obj} is a @code{userauth-request/public-key-query}
+packet.
 @end deffn
 
 @deffn Procedure userauth-request/public-key-query-algorithm request
+This field is automatically filled in by
+@code{make-userauth-request/public-key-query} to contain the public
+key algorithm name of the key contained in the query.
 @end deffn
 
 @deffn Procedure userauth-request/public-key-query-key request
+This field contains an SSH public key.
 @end deffn
 
-The server sends @code{userauth-public-key-ok} to indicate
-that the user may authenticate with the given key.
-
 @deffn Procedure make-userauth-public-key-ok algorithm key
+The server sends @code{userauth-public-key-ok} to indicate that the
+user may try to authenticate with the given key.
 @end deffn
 
 @deffn Procedure userauth-public-key-ok? obj
+Returns true if @var{obj} is a @code{userauth-public-key-ok} packet.
 @end deffn
 
 @deffn Procedure userauth-public-key-ok-algorithm request
+This is a copy of the algorithm name contained in the
+@code{userauth-request/public-key-query} packet.
 @end deffn
 
 @deffn Procedure userauth-public-key-ok-key request
+This is a copy of the public key contained in the
+@code{userauth-request/public-key-query} packet.
 @end deffn
 
-The client can try to authenticate itself with a signed
-@code{userauth-request/public-key} packet.
-
 @deffn Procedure make-userauth-request/public-key username service public-key
+This procedure creates an @emph{unsigned} request to authenticate with
+public key cryptography. The client may try to authenticate itself by
+sending a signed request to the server. The server will have a copy of
+the public key on file, e.g.@: stored in the user's
+@code{authorized_keys} file. By using the public key it can confirm
+that the client is possession of the corresponding private key. The
+packet returned by this procedure may be signed with
+@code{sign-userauth-request/public-key}.
 @end deffn
 
 @deffn Procedure userauth-request/public-key? obj
+Returns true if @var{obj} is a @code{userauth-request/public-key}
+packet.
 @end deffn
 
 @deffn Procedure userauth-request/public-key-algorithm request
+This field indicates the public key algorithm name of the public key
+in the request. It is automatically filled in when the request is
+constructed.
 @end deffn
 
 @deffn Procedure userauth-request/public-key-key request
+This field contains an SSH public key object.
+@xref{crypto ssh-public-key}.
 @end deffn
 
 @deffn Procedure sign-userauth-request/public-key request session-id private-key
-This generates a signed @code{userauth-request/public-key}. It needs
-an unsigned @var{request}. One may be created with
-@code{make-userauth-request/public-key}. The @var{session-id} comes
-from @code{ssh-conn-session-id}. The @var{private-key} is one of the
-supported private key types (DSA, ECDSA).
+This generates a signed @code{userauth-request/public-key} packet. It
+needs an unsigned @var{request}, which may be created with
+@code{make-userauth-request/public-key}. The @var{session-id} can be
+recovered with @code{ssh-conn-session-id}. The @var{private-key} must
+be a private DSA or ECDSA key (support for RSA signing is planned).
+The signed request uses the SSH connection's session ID and can
+therefore not be used with any other connection.
 @end deffn
 
 
