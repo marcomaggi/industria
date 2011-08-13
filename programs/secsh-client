@@ -25,8 +25,8 @@
         (weinholt crypto rsa)
         (weinholt crypto sha-1)
         (weinholt crypto ssh-public-key (1))
-        (weinholt net dns numbers)
-        (weinholt net dns types)
+        ;; (weinholt net dns numbers)
+        ;; (weinholt net dns types)
         (weinholt net ssh)
         (weinholt net ssh connection)
         (weinholt net ssh transport)
@@ -72,6 +72,7 @@
            (ssh-public-key-algorithm key) " "
            (base64-encode key-bv))
     ;; RFC4255
+    #;
     (let ((algo (cond ((rsa-public-key? key) (dns-sshfp-algorithm RSA))
                       ((dsa-public-key? key) (dns-sshfp-algorithm DSA))
                       (else #f))))

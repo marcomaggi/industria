@@ -305,7 +305,7 @@
                                 (library-name lib)))
                       release-libraries)))
          (ret import v)))
-      (('xitomatl . _)
+      ((or ('xitomatl . _) ('ikarus . _))
        (ret import (eq? type 'demo)))
       (else (ret import #f))))
   (for-all good-import? (program-imports test)))
