@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 #!r6rs
 
 (import (rnrs)
-        (only (srfi :1 lists) iota)
+        (for (only (srfi :1 lists) iota) expand)
         (srfi :78 lightweight-testing)
         (weinholt bytevectors)
         (weinholt crypto sha-1))
