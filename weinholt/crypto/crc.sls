@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2011 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -77,15 +77,7 @@
 ;; Another example: the polynomial x^8 + x^2 + x + 1 in this syntax
 ;; becomes: (8 2 1 0)
 
-;;; Version history
-
-;; (1 0 20090816) - Initial version. Includes crc-32, crc-16,
-;; crc-16/ccitt, crc-32c, and crc-24.
-
-;; (1 0 20090906) - Added crc-64 and the -width procedure. The -update
-;; procedure uses fixnums if (> (fixnum-width) (crc-width)).
-
-(library (weinholt crypto crc (1 1 20101117))
+(library (weinholt crypto crc (1 2 20110904))
   (export define-crc)
   (import (rnrs)
           (for (only (srfi :1 lists) iota) expand))
@@ -147,6 +139,13 @@
                           #xB704CE #f #f 0 #x21CF02))
            ((crc-64)
             #'(define-crc name (64 4 3 1 0) 0 #t #t 0 #x46A5A9388A5BEFFE))
+           ((crc-64/ecma-182)
+            ;; Used by XZ
+            #'(define-crc name
+                          (64 62 57 55 54 53 52 47 46 45 40 39 38 37 35 33 32 31
+                              29 27 24 23 22 21 19 17 13 12 10 9 7 4 1 0)
+                          #xFFFFFFFFFFFFFFFF #t #t #xFFFFFFFFFFFFFFFF
+                          #x995DC9BBDF1939FA))
            (else
             (syntax-violation #f "this CRC is not pre-defined" #'name))))
 

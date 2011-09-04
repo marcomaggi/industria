@@ -84,7 +84,8 @@
       ,(import-crc crc-16/ccitt)
       ,(import-crc crc-32c)
       ,(import-crc crc-24)
-      ,(import-crc crc-64))))
+      ,(import-crc crc-64)
+      ,(import-crc crc-64/ecma-182))))
 
 (unless (> (length (command-line)) 1)
   (display (string-append

@@ -277,9 +277,10 @@ modify data so that the modified data's CRC matches the old one.
 
 @deffn Syntax define-crc name
 This is the simple interface that requires merely the name of the CRC
-algorithm. The pre-defined CRCs that can be used this way are currently:
-@code{crc-32}, @code{crc-16}, @code{crc-16/ccitt}, @code{crc-32c},
-@code{crc-24} and @code{crc-64}.
+algorithm. The pre-defined CRCs that can be used this way are
+currently: @code{crc-32}, @code{crc-16}, @code{crc-16/ccitt},
+@code{crc-32c}, @code{crc-24}, @code{crc-64} (CRC-64-ISO), and
+@code{crc-64/ecma-182}.
 
 @example
 (import (weinholt crypto crc))
@@ -304,8 +305,8 @@ The polynomial for CRC-16 is sometimes given as @math{x^{16} + x^{15}
 reversed polynomial if you have one of those, instead set @var{ref-in}
 and @var{ref-out} properly.
 
-After a CRC has been calculated it is sometimes XOR'd with a final
-value, this is @var{xor-out}.
+After a CRC has been calculated it is sometimes @sc{xor}'d with a
+final value, this is @var{xor-out}.
 
 @var{check} is either @code{#f} or the CRC of the string @code{"123456789"}.
 @end deffn
@@ -392,6 +393,7 @@ Version history:
 @code{(1 1)} -- Added crc-64 and the @code{-width} procedures. The
 @code{-update} procedures use fixnums if @code{(fixnum-width)} is
 larger than the CRC's width.
+@code{(1 2)} -- Added crc-64/ecma-182.
 @end itemize
 
 @c ======================================================================
