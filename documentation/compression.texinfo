@@ -13,6 +13,7 @@ data created by gzip, zip and zlib.
 @c * compression huffman::        Huffman code utilities
 * compression inflate::        Decompress DEFLATE'd data
 * compression sliding-buffer:: A circular buffer attached to a data sink
+* compression xz::             XZ custom input port
 * compression zip::            ZIP archive reader/writer
 * compression zlib::           ZLIB custom input port
 @end menu
@@ -235,6 +236,48 @@ Duplicates @var{len} bytes from inside the output stream of
 @var{buffer} at @var{distance} bytes from the current end of the
 buffer.
 @end deffn
+
+@c ======================================================================
+@node compression xz
+@subsection XZ custom input port
+The @code{(weinholt compression xz)} library provides a custom input
+port for reading XZ compressed data. XZ is a wrapper format around the
+LZMA2 algorithm and it is becoming popular as a gzip/bzip2
+replacement.
+
+@emph{Note}: An XZ file can specify several types of filters, other
+than LZMA2, but these have currently not been implemented.
+
+The LZMA2 algorithm uses a sliding buffer that may be up to 4
+gigabytes. This might cause problems when reading XZ files.
+
+@deffn Procedure is-xz-file? filename-or-port
+Takes a filename or a binary input port and returns true if the file
+looks like a XZ file. The port should have @code{set-port-position!}
+and @code{port-position}.
+@end deffn
+
+@deffn Procedure make-xz-input-port binary-input-port id close-underlying-port?
+Returns a new port that can be used to read decompressed XZ data
+from the @var{binary-input-port}. The @var{id} is the name of the
+returned port. 
+
+If @var{close-underlying-port?} is true then at the end of the XZ
+stream the @var{binary-input-port} will be closed.
+@end deffn
+
+@deffn Procedure open-xz-file-input-port filename
+Opens the file specified by @var{filename} and returns a binary input
+port that decompresses the file on-the-fly.
+@end deffn
+
+
+@noindent
+Version history:
+@itemize
+@item
+@code{(1 0)} -- Initial version.
+@end itemize
 
 @c ======================================================================
 @node compression zip

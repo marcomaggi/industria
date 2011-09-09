@@ -55,6 +55,7 @@
     (weinholt compression adler-32)
     (weinholt compression inflate)
     (weinholt compression gzip)
+    (weinholt compression xz)
     (weinholt compression zip)
     (weinholt compression zlib)
     (weinholt crypto aes)
