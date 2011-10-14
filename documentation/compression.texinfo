@@ -262,8 +262,12 @@ Returns a new port that can be used to read decompressed XZ data
 from the @var{binary-input-port}. The @var{id} is the name of the
 returned port. 
 
-If @var{close-underlying-port?} is true then at the end of the XZ
-stream the @var{binary-input-port} will be closed.
+To verify that the file was decompressed correctly it is necessary to
+close the port. On close the port will read all remaining data and
+compare its checksum to the checksum at the end of the file.
+
+If @var{close-underlying-port?} is true then when the XZ input port is
+closed the @var{binary-input-port} will also be closed.
 @end deffn
 
 @deffn Procedure open-xz-file-input-port filename
