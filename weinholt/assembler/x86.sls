@@ -522,6 +522,10 @@
      ((eq? (vector-ref instr 0) 'f64)
       (walk-opcodes f (vector-ref instr 1) (append bytes (list 'f64))))
 
+     ;; Ignore future extensions to the opcode table.
+     ((symbol? (vector-ref instr 0))
+      #f)
+     
      (else
       (do ((index 0 (+ index 1)))
           ((= index 256))
@@ -1379,6 +1383,8 @@
                       mode symbols section
                       (cons (cons (caar code) (cons proc operands))
                             ret))))
+               ((%comment)
+                (lp (cdr code) mode symbols section ret))
                (else
                 ;; Translate the operands, keeping the mnemonic as a symbol.
                 (let ((operands (translate-operands (cdar code) mode)))
