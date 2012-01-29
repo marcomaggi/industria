@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; Print the checksum/hash of a file
-;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -110,5 +110,5 @@ The algorithm can be one of: "
       ((null? files))
     (display (call-with-port (open-file-input-port (car files)) csum))
     (display "  ")
-    (display (caddr (command-line)))
+    (display (car files))
     (newline)))
