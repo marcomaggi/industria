@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Assembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -1250,7 +1250,7 @@
                 ;; Label
                 (hashtable-set! (assembler-state-labels state)
                                 label
-                                (assembler-state-ip state))
+                                (+ (assembler-state-ip state) pad))
                 ;; Size
                 (assembler-state-ip-set! state (+ (assembler-state-ip state)
                                                   pad size)))))
