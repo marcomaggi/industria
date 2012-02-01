@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -687,6 +687,9 @@
         '(repz.cmps (mem32+ rsi) (mem32+ rdi))
         '(repnz.scas rax (mem64+ rdi)))
 
+(test64 #vu8(#x0F #x8F #x00 #x00 #x00 #x00)
+        '(jnle (+ rip 0)))
+
 ;;; Test the special handling of NOP/PAUSE
 (test16 '#vu8(#x90
               #x66 #x90
@@ -728,6 +731,39 @@
         '(xchg eax eax)
         '(xchg r8d eax)
         '(xchg r8w ax))
+
+;;; MOVBE/CRC32 is special
+
+(test64 #vu8(#xF2 #x0F #x38 #xF0 #xC0) '(crc32 eax al))
+(test64 #vu8(#xF2 #x48 #x0F #x38 #xF0 #xC0) '(crc32 rax al))
+(test64 #vu8(#x66 #xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax ax))
+(test64 #vu8(#xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax eax))
+(test64 #vu8(#xF2 #x48 #x0F #x38 #xF1 #xC0) '(crc32 rax rax))
+
+(test64 #vu8(#x66 #x0F #x38 #xF1 #x00) '(movbe (mem16+ rax) ax))
+(test64 #vu8(#x0F #x38 #xF1 #x00) '(movbe (mem32+ rax) eax))
+(test64 #vu8(#x48 #x0F #x38 #xF1 #x00) '(movbe (mem64+ rax) rax))
+(test64 #vu8(#x48 #x0F #x38 #xF0 #x00) '(movbe rax (mem64+ rax)))
+(test64 #vu8(#x0F #x38 #xF0 #x00) '(movbe eax (mem32+ rax)))
+(test64 #vu8(#x66 #x0F #x38 #xF0 #x00) '(movbe ax (mem16+ rax)))
+
+(test32 #vu8(#xF2 #x0F #x38 #xF0 #xC0) '(crc32 eax al))
+(test32 #vu8(#x66 #xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax ax))
+(test32 #vu8(#xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax eax))
+
+(test32 #vu8(#x66 #x0F #x38 #xF1 #x00) '(movbe (mem16+ eax) ax))
+(test32 #vu8(#x0F #x38 #xF1 #x00) '(movbe (mem32+ eax) eax))
+(test32 #vu8(#x0F #x38 #xF0 #x00) '(movbe eax (mem32+ eax)))
+(test32 #vu8(#x66 #x0F #x38 #xF0 #x00) '(movbe ax (mem16+ eax)))
+
+(test16 #vu8(#xF2 #x0F #x38 #xF0 #xC0) '(crc32 eax al))
+(test16 #vu8(#xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax ax))
+(test16 #vu8(#x66 #xF2 #x0F #x38 #xF1 #xC0) '(crc32 eax eax))
+
+(test16 #vu8(#x0F #x38 #xF1 #x04) '(movbe (mem16+ si) ax))
+(test16 #vu8(#x66 #x0F #x38 #xF1 #x04) '(movbe (mem32+ si) eax))
+(test16 #vu8(#x66 #x0F #x38 #xF0 #x04) '(movbe eax (mem32+ si)))
+(test16 #vu8(#x0F #x38 #xF0 #x04) '(movbe ax (mem16+ si)))
 
 ;;; Instruction encodings that are too long
 
@@ -789,5 +825,15 @@
 
 (check (test/error 64 (make-bytevector 14 #x36))
        => "End of file inside instruction")
+
+;;; RIP-relative addressing
+
+;; See what happens with RIP-relative addressing and address size
+;; override.
+(check (test/error 64 #vu8(#x48 #x8B #x05 #xF8 #xFF #xFF #xFF))
+       => '(mov rax (mem64+ rip -8)))
+
+(check (test/error 64 #vu8(#x67 #x48 #x8B #x05 #xF8 #xFF #xFF #xFF))
+       => '(mov rax (mem64+ eip -8)))
 
 (check-report)

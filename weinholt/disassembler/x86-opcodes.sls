@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Opcode table for the Intel 80x86 processor
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -15,22 +15,6 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #!r6rs
-
-;;; Version history
-
-;; (1 0 0) - Unreleased.
-
-;;; Versioning scheme
-
-;; The version is made of (major minor patch) sub-versions.
-
-;; The `patch' sub-version will be incremented when corrections to the
-;; table are made that don't introduce new table or operand syntax.
-;; New mnemonics can be introduced at this level.
-
-;; The `minor' is incremented when new operand syntax is introduced.
-
-;; The `major' is incremented when the table syntax changes.
 
 ;;; Table syntax
 
@@ -121,12 +105,13 @@
 ;; For Intel AVX instructions, the opcode syntaxes K, KW, WK, B, BW,
 ;; WB, In have been used and are not official.
 
-(library (weinholt disassembler x86-opcodes (1 0 20100817))
+(library (weinholt disassembler x86-opcodes (1 0 20120201))
   (export opcodes pseudo-mnemonics mnemonic-aliases
           lock-instructions
           branch-hint-instructions
           rep-instructions
-          repz-instructions)
+          repz-instructions
+          XOP-opcode-map-8 XOP-opcode-map-9 XOP-opcode-map-A)
   (import (rnrs))
 
   (define lock-instructions
@@ -692,17 +677,165 @@
            ;; 0F 38 88
            #f #f #f #f #f #f #f #f
            ;; 0F 38 90
-           #f #f #f #f #f #f #f #f
+           #f #f #f #f
+           #f #f
+           #(Prefix #f #f               ;FMA4 stuff
+                    #(VEX #f #(Datasize #f
+                                        (vfmaddsub132ps Vps Bdq Wps)
+                                        (vfmaddsub132pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsubadd132ps Vps Bdq Wps)
+                                        (vfmsubadd132pd Vpd Bdq Wpd)))
+                    #f)
            ;; 0F 38 98
-           #f #f #f #f #f #f #f #f
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd132ps Vps Bdq Wps)
+                                        (vfmadd132pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd132ss Vss Bss Wss)
+                                        (vfmadd132sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub132ps Vps Bdq Wps)
+                                        (vfmsub132pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub132ss Vss Bss Wss)
+                                        (vfmsub132sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd132ps Vps Bdq Wps)
+                                        (vfnmadd132pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd132ss Vss Bss Wss)
+                                        (vfnmadd132sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub132ps Vps Bdq Wps)
+                                        (vfnmsub132pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub132ss Vss Bss Wss)
+                                        (vfnmsub132sd Vsd Bsd Wsd)))
+                    #f)
            ;; 0F 38 A0
-           #f #f #f #f #f #f #f #f
+           #f #f #f #f #f #f
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmaddsub213ps Vps Bdq Wps)
+                                        (vfmaddsub213pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsubadd213ps Vps Bdq Wps)
+                                        (vfmsubadd213pd Vpd Bdq Wpd)))
+                    #f)
            ;; 0F 38 A8
-           #f #f #f #f #f #f #f #f
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd213ps Vps Bdq Wps)
+                                        (vfmadd213pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd213ss Vss Bss Wss)
+                                        (vfmadd213sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub213ps Vps Bdq Wps)
+                                        (vfmsub213pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub213ss Vss Bss Wss)
+                                        (vfmsub213sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd213ps Vps Bdq Wps)
+                                        (vfnmadd213pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd213ss Vss Bss Wss)
+                                        (vfnmadd213sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub213ps Vps Bdq Wps)
+                                        (vfnmsub213pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub213ss Vss Bss Wss)
+                                        (vfnmsub213sd Vsd Bsd Wsd)))
+                    #f)
            ;; 0F 38 B0
-           #f #f #f #f #f #f #f #f
+           #f #f #f #f #f #f
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmaddsub231ps Vps Bdq Wps)
+                                        (vfmaddsub231pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsubadd231ps Vps Bdq Wps)
+                                        (vfmsubadd231pd Vpd Bdq Wpd)))
+                    #f)
            ;; 0F 38 B8
-           #f #f #f #f #f #f #f #f
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd231ps Vps Bdq Wps)
+                                        (vfmadd231pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmadd231ss Vss Bss Wss)
+                                        (vfmadd231sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub231ps Vps Bdq Wps)
+                                        (vfmsub231pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfmsub231ss Vss Bss Wss)
+                                        (vfmsub231sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd231ps Vps Bdq Wps)
+                                        (vfnmadd231pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmadd231ss Vss Bss Wss)
+                                        (vfnmadd231sd Vsd Bsd Wsd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub231ps Vps Bdq Wps)
+                                        (vfnmsub231pd Vpd Bdq Wpd)))
+                    #f)
+           #(Prefix #f #f
+                    #(VEX #f #(Datasize #f
+                                        (vfnmsub231ss Vss Bss Wss)
+                                        (vfnmsub231sd Vsd Bsd Wsd)))
+                    #f)
            ;; 0F 38 C0
            #f #f #f #f #f #f #f #f
            ;; 0F 38 C8
@@ -711,25 +844,30 @@
            #f #f #f #f #f #f #f #f
            ;; 0F 38 D8
            #f #f #f
-           #(Prefix #f #f (aesimc Vdq Wdq) #f)
-           #(Prefix #f #f (aesenc Vdq Wdq) #f)
-           #(Prefix #f #f (aesenclast Vdq Wdq) #f)
-           #(Prefix #f #f (aesdec Vdq Wdq) #f)
-           #(Prefix #f #f (aesdeclast Vdq Wdq) #f)
+           #(Prefix #f #f #(VEX (aesimc Vdq Wdq) (vaesimc Vo Wo)) #f)
+           #(Prefix #f #f #(VEX (aesenc Vdq Wdq) (vaesenc Vo Ho Wo)) #f)
+           #(Prefix #f #f #(VEX (aesenclast Vdq Wdq) (vaesenclast Vo Ho Wo)) #f)
+           #(Prefix #f #f #(VEX (aesdec Vdq Wdq) (vaesdec Vo Ho Wo)) #f)
+           #(Prefix #f #f #(VEX (aesdeclast Vdq Wdq) (vaesdeclast Vo Ho Wo)) #f)
            ;; 0F 38 E0
            #f #f #f #f #f #f #f #f
            ;; 0F 38 E8
            #f #f #f #f #f #f #f #f
            ;; 0F 38 F0
-           #(Prefix (movbe Gv Mv)
-                    #f
-                    #f
-                    (crc32 Gd Eb))
-           #(Prefix (movbe Mv Gv)
-                    #f
-                    #f
-                    (crc32 Gd Ev))
-           #f #f #f #f #f #f
+           #(Prefix/eos (movbe Gv Mv)
+                        ;; XXX: AMD indicates a VEX encoding of this
+                        (crc32 Gd/q Eb))
+           #(Prefix/eos (movbe Mv Gv)
+                        (crc32 Gd/q Ev))
+           #(VEX #f (andn Gd/q By Ed/q))
+           #(Group "VEX group #17"
+                 #(#f
+                   #(VEX #f (blsr By Ed/q))
+                   #(VEX #f (blsmsk By Ed/q))
+                   #(VEX #f (blsi By Ed/q))
+                   #f #f #f #f))
+           #f #f #f
+           #(VEX #f (bextr Gd/q Ed/q By))
            ;; 0F 38 F8
            #f #f #f #f #f #f #f #f)
          (dmint)
@@ -770,12 +908,12 @@
                                 #f)
                     #f)
            ;; 0F 3A 18
-           #(Prefix #f #f #(VEX #f #f (vinsertf128 Vdq Bdq Wdq/128 Ib)) #f)
-           #(Prefix #f #f #(VEX #f #f (vextractf128 Wdq/128 Bdq Ib)) #f)
+           #(Prefix #f #f #(VEX #f #f (vinsertf128 Vdq Bdq Wo Ib)) #f)
+           #(Prefix #f #f #(VEX #f #f (vextractf128 Wo Bdq Ib)) #f)
            #f
            #f
            #f
-           #f
+           #f                           ;TODO: vcvtps2ph
            #f
            #f
            ;; 0F 3A 20
@@ -814,9 +952,9 @@
            ;; 0F 3A 48
            #(Prefix #f #f #(VEX #f (vpermil2ps Vps Bps WKps KWps In)) #f)
            #(Prefix #f #f #(VEX #f (vpermil2pd Vpd Bpd WKpd KWpd In)) #f)
-           #(Prefix #f #f #(VEX #f (vblendvps Vps Bps Wps Kps)) #f)
-           #(Prefix #f #f #(VEX #f (vblendvpd Vpd Bpd Wpd Kpd)) #f)
-           #(Prefix #f #f #(VEX #f (vpblendvb Vdq Bdq Wdq Kdq)) #f)
+           #(Prefix #f #f #(VEX #f (vblendvps Vx Hx Wx Lx)) #f)
+           #(Prefix #f #f #(VEX #f (vblendvpd Vx Hx Wx Lx)) #f)
+           #(Prefix #f #f #(VEX #f (vpblendvb Vo Ho Wo Lo)) #f)
            #f
            #f
            #f
@@ -881,7 +1019,9 @@
            #f #f #f #f #f #f #f #f
            ;; 0F 3A D8
            #f #f #f #f #f #f #f
-           #(Prefix #f #f (aeskeygenassist Vdq Wdq Ib) #f)
+           #(Prefix #f #f
+                    #(VEX (aeskeygenassist Vdq Wdq Ib) (vaeskeygenassist Vdq Wo Ib))
+                    #f)
            ;; 0F 3A E0
            #f #f #f #f #f #f #f #f
            ;; 0F 3A E8
@@ -1517,7 +1657,7 @@
        (mov Ev Sw)
        (lea Gv M)
        (mov Sw Ew)
-       #(Group "Group 1A"
+       #(Group "Group 1A"               ;Three byte XOP prefix
                #(#(d64 (pop Ev))
                  #f #f #f #f #f #f #f))
        ;; 90
@@ -1794,12 +1934,11 @@
        (*prefix* repz)
        (hlt)
        (cmc)
-       ;; On AMD's CPU, the #f here duplicates the test instruction.
        #(Group "Unary Group 3"
-               #((test Eb Ib) #f (not Eb) (neg Eb)
+               #((test Eb Ib) (test/amd Eb Ib) (not Eb) (neg Eb)
                  (mul Eb) (imul Eb) (div Eb) (idiv Eb)))
        #(Group "Unary Group 3"
-               #((test Ev Iz) #f (not Ev) (neg Ev)
+               #((test Ev Iz) (test/amd Ev Iz) (not Ev) (neg Ev)
                  (mul Ev) (imul Ev) (div Ev) (idiv Ev)))
        ;; F8
        (clc) (stc)
@@ -1815,4 +1954,196 @@
                  #(f64 (jmp Ev))
                  (jmpf Mp)
                  #(d64 (push Ev))
-                 #f)))))
+                 #f))))
+
+  ;; AMDs XOP opcode maps are not part of the other opcode map.
+  (define XOP-opcode-map-8
+    '#(#f #f #f #f #f #f #f #f
+       ;; 08
+       #f #f #f #f #f #f #f #f
+       ;; 10
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 20
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 30
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 40
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 50
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 60
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 70
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 80
+       #f #f #f #f #f
+       #(VEX #f (vpmacssww Vo Ho Wo Lo))
+       #(VEX #f (vpmacsswd Vo Ho Wo Lo))
+       #(VEX #f (vpmacssdql Vo Ho Wo Lo))
+       #f #f #f #f #f #f
+       #(VEX #f (vpmacssdd Vo Ho Wo Lo))
+       #(VEX #f (vpmacssdqh Vo Ho Wo Lo))
+       ;; 90
+       #f #f #f #f #f
+       #(VEX #f (vpmacsww Vo Ho Wo Lo))
+       #(VEX #f (vpmacswd Vo Ho Wo Lo))
+       #(VEX #f (vpmacsdql Vo Ho Wo Lo))
+       #f #f #f #f #f #f
+       #(VEX #f (vpmacsdd Vo Ho Wo Lo))
+       #(VEX #f (vpmacsdqh Vo Ho Wo Lo))
+       ;; A0
+       #f #f
+       #(VEX #f #(W (vpcmov Vx Hx Wx Lx) (vpcmov Vx Hx Lx Wx)))
+       #(VEX #f #(W (vpperm Vo Ho Wo Lo) (vpperm Vo Ho Lo Wo)))
+       #f #f
+       #(VEX #f (vpmadcsswd Vo Ho Wo Lo))
+       #f
+       #f #f #f #f #f #f #f #f
+       ;; B0
+       #f #f #f #f #f #f
+       #(VEX #f (vpmadcswd Vo Ho Wo Lo))
+       #f
+       #f #f #f #f #f #f #f #f
+       ;; C0
+       #(VEX #f (vprotb Vo Wo Ib))
+       #(VEX #f (vprotw Vo Wo Ib))
+       #(VEX #f (vprotd Vo Wo Ib))
+       #(VEX #f (vprotq Vo Wo Ib))
+       #f #f #f #f #f #f #f #f
+       #f #f #f #f                      ;TODO
+       ;; D0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; E0
+       #f #f #f #f #f #f #f #f #f #f #f #f
+       #f #f #f #f                      ;TODO
+       ;; F0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f))
+
+  (define XOP-opcode-map-9
+    '#(#f
+       #(VEX #f
+             #(Group "XOP group #1"
+                    #(#f (blcfill By Ed/q) (blsfill By Ed/q) (blcs By Ed/q)
+                         (tzmsk By Ed/q) (blcic By Ed/q) (blsic By Ed/q)
+                         (t1mskc By Ed/q))))
+       #(VEX #f
+             #(Group "XOP group #2"
+                    #(#f (blcmsk By Ed/q) #f #f
+                         #f #f (blci By Ed/q) #f)))
+       #f #f #f #f #f
+       ;; 08
+       #f #f #f #f #f #f #f #f
+       ;; 10
+       #f #f
+       #(VEX #f
+             #(Group "XOP group #3"
+                     #((llwpcb Rd/q) (slwpcb Rd/q) #f #f #f #f #f #f)))
+       #f #f #f #f #f
+       ;; 18
+       #f #f #f #f #f #f #f #f
+       ;; 20
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 30
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 40
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 50
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 60
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 70
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 80
+       #(VEX #f (vfrczps Vx Wx))
+       #(VEX #f (vfrczpd Vx Wx))
+       #(VEX #f (vfrczss Vq Wss))
+       #(VEX #f (vfrczsd Vq Wsd))
+       #f #f #f #f
+       #f #f #f #f                ;AMD's opcode map places VPSHA* here
+       #f #f #f #f
+       ;; 90
+       #(VEX #f #(W (vprotb Vo Wo Ho) (vprotb Vo Ho Wo)))
+       #(VEX #f #(W (vprotw Vo Wo Ho) (vprotw Vo Ho Wo)))
+       #(VEX #f #(W (vprotd Vo Wo Ho) (vprotd Vo Ho Wo)))
+       #(VEX #f #(W (vprotq Vo Wo Ho) (vprotq Vo Ho Wo)))
+       #(VEX #f #(W (vpshlb Vo Wo Ho) (vpshlb Vo Ho Wo)))
+       #(VEX #f #(W (vpshlw Vo Wo Ho) (vpshlw Vo Ho Wo)))
+       #(VEX #f #(W (vpshld Vo Wo Ho) (vpshld Vo Ho Wo)))
+       #(VEX #f #(W (vpshlq Vo Wo Ho) (vpshlq Vo Ho Wo)))
+       #(VEX #f #(W (vpshab Vo Wo Ho) (vpshab Vo Ho Wo)))
+       #(VEX #f #(W (vpshaw Vo Wo Ho) (vpshaw Vo Ho Wo)))
+       #(VEX #f #(W (vpshad Vo Wo Ho) (vpshad Vo Ho Wo)))
+       #(VEX #f #(W (vpshaq Vo Wo Ho) (vpshaq Vo Ho Wo)))
+       #f #f #f #f
+       ;; A0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; B0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; C0
+       #f
+       #(VEX #f (vphaddbw Vo Wo))
+       #(VEX #f (vphaddbd Vo Wo))
+       #(VEX #f (vphaddbq Vo Wo))
+       #f #f
+       #(VEX #f (vphaddwd Vo Wo))
+       #(VEX #f (vphaddwq Vo Wo))
+       #f #f #f
+       #(VEX #f (vphadddq Vo Wo))
+       #f #f #f #f
+       ;; D0
+       #f
+       #(VEX #f (vphaddubw Vo Wo))      ;"VPHADDUBWD"?
+       #(VEX #f (vphaddubd Vo Wo))
+       #(VEX #f (vphaddubq Vo Wo))
+       #f #f
+       #(VEX #f (vphadduwd Vo Wo))
+       #(VEX #f (vphadduwq Vo Wo))
+       #f #f #f
+       #(VEX #f (vphaddudq Vo Wo))
+       #f #f #f #f
+       ;; E0
+       #f
+       #(VEX #f (vphsubbw Vo Wo))
+       #(VEX #f (vphsubwd Vo Wo))
+       #(VEX #f (vphsubdq Vo Wo))
+       #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; F0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f))
+
+  (define XOP-opcode-map-A
+    '#(#f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 10
+       #(Prefix (bextr Gd/q Ed/q Id) #f #f #f #f)
+       #f
+       #(VEX #f
+             #(Group "XOP group #4"
+                     #((lwpins By Ed Id) (lwpval By Ed Id) #f #f #f #f #f #f)))
+       #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 20
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 30
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 40
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 50
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 60
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 70
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 80
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; 90
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; A0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; B0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; C0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; D0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; E0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+       ;; F0
+       #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f)))

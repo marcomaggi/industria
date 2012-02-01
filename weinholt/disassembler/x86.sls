@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Disassembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 ;; an operand that can be used to decide the operand size, no such
 ;; suffix is necessary.
 
-(library (weinholt disassembler x86 (1 1 20101127))
+(library (weinholt disassembler x86 (1 1 20120201))
   (export get-instruction invalid-opcode?)
   (import (only (srfi :1 lists) map-in-order)
           (except (rnrs) get-u8)
@@ -64,7 +64,7 @@
 
   (define (has-/is4? instr)
     (and (list? instr)
-         (exists (lambda (op) (memq op '(In Kpd Kps Kss Ksd)))
+         (exists (lambda (op) (memq op '(In Kpd Kps Kss Ksd Lo Lx)))
                  (cdr instr))))
 
   (define limiter (make-parameter #f))
@@ -129,6 +129,14 @@
       (else (raise-UD "Reserved VEX.m-mmmm encoding"
                       (bitwise-bit-field byte 0 5)))))
 
+  (define (XOP-map-select->table byte)
+    (case (bitwise-bit-field byte 0 5) ;XOP.map_select
+      ((#b01000) XOP-opcode-map-8)
+      ((#b01001) XOP-opcode-map-9)
+      ((#b01010) XOP-opcode-map-A)
+      (else (raise-UD "Reserved XOP.map_select encoding"
+                      (bitwise-bit-field byte 0 5)))))
+
   (define (VEX3->prefixes prefixes mode byte1 byte2)
     (let ((byte1 (if (= mode 64) byte1 (bitwise-ior byte1 #b1110000))))
       (fold-left enum-set-union
@@ -175,12 +183,20 @@ no conflict with LES/LDS)."
       (and (not (eof-object? byte))
            (= (bitwise-bit-field byte 6 8) #b11))))
 
+  (define (lookahead-is-valid-XOP? port)
+    "The instruction is probably a POP if map_select < #b111."
+    (let ((byte (lookahead-u8 port)))
+      (and (fixnum? byte)
+           (fx>=? (fxbit-field byte 0 5) #b00111))))
+
 ;;;
-  (define (VEX-prefix-check prefixes)
+  (define (VEX-prefix-check prefixes mode)
+    (when (eqv? mode 16)
+      (raise-UD "The VEX/XOP prefix is not valid in 16-bit modes"))
     (unless (enum-set=? (prefix-set)
                         (enum-set-intersection
                          prefixes (prefix-set vex rex lock operand repz repnz)))
-      (raise-UD "Conflicting prefixes together with VEX")))
+      (raise-UD "Conflicting prefixes together with VEX/XOP")))
 
   (define (needs-VEX prefixes)
     (unless (enum-set-member? (prefix vex) prefixes)
@@ -375,7 +391,7 @@ operand is an opcode extension."
         instruction))
 
 ;;; Instruction stream decoding
-  (define (get-displacement port collect prefixes modr/m address-size)
+  (define (get-displacement port mode collect prefixes modr/m address-size)
     "Reads a SIB and a memory offset, if present. Returns a memory
 reference or a register number. This is later passed to
 translate-displacement."
@@ -383,16 +399,17 @@ translate-displacement."
           (r/m (ModR/M-r/m modr/m prefixes)))
       (define (mem32/64 register regs sib?)
         (case mod
-          ((#b00) (cond ((and (or (fx=? address-size 32) sib?)
-                              (fx=? (bitwise-and register #b111) #b101))
-                         ;; FIXME: sign-extend these instead of giving
-                         ;; them as negative numbers? At least if they
-                         ;; are large enough...
-                         (list (get-s32/collect port collect (tag disp))))
-                        ((fx=? (bitwise-and register #b111) #b101)
-                         (list 'rip (get-s32/collect port collect (tag disp))))
-                        (else
-                         (list (vector-ref regs register)))))
+          ((#b00) (cond
+                    ((fx=? (fxand register #b111) #b101)
+                     ;; FIXME: sign-extend these instead of giving
+                     ;; them as negative numbers? At least if they are
+                     ;; large enough...
+                     (if (or (fx=? mode 32) sib?)
+                         (list (get-s32/collect port collect (tag disp)))
+                         (list (if (fx=? address-size 64) 'rip 'eip)
+                               (get-s32/collect port collect (tag disp)))))
+                    (else
+                     (list (vector-ref regs register)))))
           ((#b01) (list (vector-ref regs register)
                         (get-s8/collect port collect (tag disp))))
           ((#b10) (list (vector-ref regs register)
@@ -545,6 +562,7 @@ translate-displacement."
                  ((64) (bitwise-ior #xffffffffffffff00 byte)))
                byte)))
         ((Iw) (get-u16/collect port collect (tag immediate)))
+        ((Id) (get-u32/collect port collect (tag immediate)))
         ((Iv)
          ((case operand-size
             ((16) get-u16/collect)
@@ -654,13 +672,14 @@ translate-displacement."
         ;; pd = packed double-precision floating point
         ;; ss = scalar single-precision floating point
         ;; sd = scalar double-precision floating point
-        ((Vps Vdq Vpd Vq Vd Vsd Vss)
+        ;; x = 128/256 bit vector
+        ((Vps Vdq Vpd Vq Vd Vsd Vss Vx)
          (translate-displacement prefixes mode (ModR/M-reg modr/m prefixes) 'xmm))
         ;; Called VRdq by AMD:
         ((Ups Udq Upd Uq)
          (translate-displacement prefixes mode disp 'xmm 'notmem))
 
-        ((Wps Wdq Wpd)
+        ((Wps Wdq Wpd Wx)
          (translate-displacement prefixes mode disp 'xmm))
         ((Wsd Udq/Mq Wq)
          (translate-displacement prefixes mode disp 'xmm 64))
@@ -679,7 +698,7 @@ translate-displacement."
         ((Nq)
          (translate-displacement prefixes mode disp 'mmx 'notmem))
 
-        ((Wps/128 Wdq/128)              ;Forced to 128-bit xmm
+        ((Wps/128 Wo)                   ;Forced to 128-bit xmm
          (translate-displacement (enum-set-difference prefixes (prefix-set vex.l))
                                  mode disp 'xmm))
         ((Wq/128)                       ;Forced to 128-bit xmm
@@ -688,12 +707,26 @@ translate-displacement."
         ((Vq/128)                       ;Forced to 128-bit xmm
          (translate-displacement (enum-set-difference prefixes (prefix-set vex.l))
                                  mode (ModR/M-reg modr/m prefixes) 'xmm 64))
+        ((Vo)                           ;Forced to 128-bit xmm
+         (translate-displacement (enum-set-difference prefixes (prefix-set vex.l))
+                                 mode (ModR/M-reg modr/m prefixes) 'xmm))
 
         ;; Intel AVX. K, KW, WK, B, BW, WB is not official opsyntax.
-        ((Kpd Kps Kss Ksd Kdq)
+        ((Kpd Kps Kss Ksd)
          (needs-VEX prefixes)
          (translate-displacement prefixes mode
-                                 (bitwise-bit-field /is4 4 (if (= mode 64) 8 7))
+                                 (fxbit-field /is4 4 (if (= mode 64) 8 7))
+                                 'xmm))
+        ((Lo)
+         (needs-VEX prefixes)
+         (translate-displacement (enum-set-difference prefixes (prefix-set vex.l))
+                                 mode
+                                 (fxbit-field /is4 4 (if (= mode 64) 8 7))
+                                 'xmm))
+        ((Lx)
+         (needs-VEX prefixes)
+         (translate-displacement prefixes mode
+                                 (fxbit-field /is4 4 (if (= mode 64) 8 7))
                                  'xmm))
 
         ((KWpd) (if (enum-set-member? (prefix rex.w) prefixes)
@@ -706,10 +739,15 @@ translate-displacement."
         ((WKps) (if (enum-set-member? (prefix rex.w) prefixes)
                     (get-operand 'Kps) (get-operand 'Wps)))
 
-        ((Bpd Bps Bss Bsd Bdq)
+        ((Bpd Bps Bss Bsd Bdq Hx)
          (needs-VEX prefixes)
          (translate-displacement prefixes mode vex.v 'xmm))
+        ((Ho)
+         (needs-VEX prefixes)
+         (translate-displacement (enum-set-difference prefixes (prefix-set vex.l))
+                                 mode vex.v 'xmm))
 
+        ;; TODO: These things shouldn't be used. Replace them with #(W ... ...)
         ((BWpd) (if (enum-set-member? (prefix rex.w) prefixes)
                     (get-operand 'Wpd) (get-operand 'Bpd)))
         ((BWps) (if (enum-set-member? (prefix rex.w) prefixes)
@@ -728,7 +766,11 @@ translate-displacement."
         ((WBsd) (if (enum-set-member? (prefix rex.w) prefixes)
                     (get-operand 'Bsd) (get-operand 'Wsd)))
 
-        ((In) (bitwise-bit-field /is4 0 4))
+        ((In) (fxbit-field /is4 0 4))
+
+        ((By)
+         (needs-VEX prefixes)
+         (translate-displacement prefixes mode vex.v (max 32 operand-size)))
 
         ;; These must be memory references
         ((M Ms) (translate-displacement prefixes mode disp 'notreg 'generic))
@@ -795,7 +837,9 @@ translate-displacement."
          (case operand-size
            ((16) 'ax)
            ((32) 'eax)
-           ((64) 'rax))))))
+           ((64) 'rax)))
+        (else
+         (error 'get-operand "Unimplemented opsyntax" op)))))
 
   (define (get-operands port mode collect prefixes instr modr/m opcode vex.v d64)
     (let* ((operand-size (case mode
@@ -814,9 +858,10 @@ translate-displacement."
                                        (else 32)))
                            ((16) (cond ((enum-set-member? (prefix address) prefixes) 32)
                                        (else 16)))))
-           (modr/m (or modr/m (and (has-modr/m? instr) (get-u8/collect port collect (tag modr/m)))))
+           (modr/m (or modr/m (and (has-modr/m? instr)
+                                   (get-u8/collect port collect (tag modr/m)))))
            (disp (and (number? modr/m)
-                      (get-displacement port collect prefixes modr/m address-size)))
+                      (get-displacement port mode collect prefixes modr/m address-size)))
            (/is4 (and (has-/is4? instr) (get-u8/collect port collect (tag /is4)))))
       ;; At this point in the instruction stream, the only things left
       ;; are I, J and O (immediate, jump offset, offset) values.
@@ -825,25 +870,23 @@ translate-displacement."
                " prefixes=" (enum-set->list prefixes)
                " opcode=" (number->string opcode 16)
                " vex.v=" vex.v
-               " displacement=" disp)
-        (if (number? /is4) (print "/is4=" (number->string /is4 2)))
+               " displacement=" disp
+               " /is4=" (and /is4 (number->string /is4 2)))
         (if (number? modr/m) (print-modr/m modr/m prefixes)))
 
-      (fix-rep
-       (fix-branches
-        (fix-lock
-         (fix-pseudo-ops
-          (fix-nop
-           (cons (car instr)
-                 (map-in-order (lambda (op)
-                                 (get-operand port mode collect op prefixes opcode vex.v
-                                              operand-size address-size modr/m
-                                              disp /is4))
-                               (cdr instr)))
-           prefixes mode operand-size))
-         prefixes)
-        prefixes)
-       prefixes)))
+      (let* ((x (cons (car instr)
+                      (map-in-order (lambda (op)
+                                      (get-operand port mode collect op prefixes
+                                                   opcode vex.v
+                                                   operand-size address-size modr/m
+                                                   disp /is4))
+                                    (cdr instr))))
+             (x (fix-nop x prefixes mode operand-size))
+             (x (fix-pseudo-ops x))
+             (x (fix-lock x prefixes))
+             (x (fix-branches x prefixes))
+             (x (fix-rep x prefixes)))
+        x)))
 
   (define (get-instruction* port mode collect)
     (let more-opcode ((opcode-table opcodes)
@@ -864,7 +907,7 @@ translate-displacement."
              (let* ((byte1 (get-u8 port))
                     (byte2 (get-u8 port)))
                (collect (tag prefix) opcode byte1 byte2)
-               (VEX-prefix-check prefixes)
+               (VEX-prefix-check prefixes mode)
                (more-opcode (VEX-m-mmmm->table byte1)
                             (VEX-vvvv byte2 mode)
                             (VEX3->prefixes prefixes mode byte1 byte2))))
@@ -874,10 +917,21 @@ translate-displacement."
              ;; Two-byte VEX prefix
              (let ((byte1 (get-u8 port)))
                (collect (tag prefix) opcode byte1)
-               (VEX-prefix-check prefixes)
+               (VEX-prefix-check prefixes mode)
                (more-opcode (vector-ref opcodes #x0F)
                             (VEX-vvvv byte1 mode)
                             (VEX2->prefixes prefixes mode byte1))))
+
+            ((and (eqv? opcode #x8F) (eq? opcode-table opcodes)
+                  (lookahead-is-valid-XOP? port))
+             ;; Three-byte XOP prefix
+             (let* ((byte1 (get-u8 port))
+                    (byte2 (get-u8 port)))
+               (collect (tag prefix) opcode byte1 byte2)
+               (VEX-prefix-check prefixes mode)
+               (more-opcode (XOP-map-select->table byte1)
+                            (VEX-vvvv byte2 mode)
+                            (VEX3->prefixes prefixes mode byte1 byte2))))
 
             ((not instr)
              (unless opcode-collected
@@ -903,7 +957,7 @@ translate-displacement."
                (raise-UD "VEX was used but a legacy instruction was found"))
              (get-operands port mode collect prefixes instr modr/m opcode vex.v d64))
 
-            ;; Divide and conquer the instruction table
+            ;; Traverse the instruction table
 
             ((eq? (vector-ref instr 0) 'Group)
              ;; Read a ModR/M byte and use the fields as opcode
@@ -1015,6 +1069,29 @@ translate-displacement."
                  modr/m opcode
                  prefixes
                  opcode-collected vex-traversed #t))
+
+            ((eq? (vector-ref instr 0) 'Prefix/eos)
+             ;; This is for 0F 38 F0/F1 (MOVBE/CRC32). These opcodes
+             ;; look a lot like SSE, but they use 66 to change the
+             ;; effective operand size.
+             (lp (vector-ref instr
+                             (cond ((enum-set-member? (prefix repnz) prefixes) 2)
+                                   (else 1)))
+                 modr/m opcode
+                 (enum-set-difference prefixes (prefix-set repz repnz))
+                 opcode-collected vex-traversed d64))
+
+            ((eq? (vector-ref instr 0) 'W)
+             ;; This handles the case where two of the operands change
+             ;; order based on REX.W. This is used in VEX/XOP to
+             ;; enable the memory operand to be either one of two
+             ;; operands.
+             (lp (vector-ref instr
+                             (cond ((enum-set-member? (prefix rex.w) prefixes) 2)
+                                   (else 1)))
+                 modr/m opcode
+                 (enum-set-difference prefixes (prefix-set rex.w))
+                 opcode-collected vex-traversed d64))
 
             (else
              (collect (tag opcode) opcode)
