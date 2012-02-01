@@ -33,8 +33,7 @@
 
 (library (weinholt disassembler x86 (1 1 20120201))
   (export get-instruction invalid-opcode?)
-  (import (only (srfi :1 lists) map-in-order)
-          (except (rnrs) get-u8)
+  (import (except (rnrs) get-u8)
           (srfi :39 parameters)
           (weinholt disassembler private (0 0))
           (weinholt disassembler x86-opcodes (1 0 (>= 0))))
@@ -875,12 +874,14 @@ translate-displacement."
         (if (number? modr/m) (print-modr/m modr/m prefixes)))
 
       (let* ((x (cons (car instr)
-                      (map-in-order (lambda (op)
-                                      (get-operand port mode collect op prefixes
-                                                   opcode vex.v
-                                                   operand-size address-size modr/m
-                                                   disp /is4))
-                                    (cdr instr))))
+                      (let lp ((op* (cdr instr)))
+                        (if (null? op*)
+                            '()
+                            (cons (get-operand port mode collect (car op*) prefixes
+                                               opcode vex.v
+                                               operand-size address-size modr/m
+                                               disp /is4)
+                                  (lp (cdr op*)))))))
              (x (fix-nop x prefixes mode operand-size))
              (x (fix-pseudo-ops x))
              (x (fix-lock x prefixes))
