@@ -836,4 +836,18 @@
 (check (test/error 64 #vu8(#x67 #x48 #x8B #x05 #xF8 #xFF #xFF #xFF))
        => '(mov rax (mem64+ eip -8)))
 
+;;; XOP
+
+(check (test/error 64 #vu8(#x0F #x8F #x38 #x00 #x00 #x00))
+       => '(jnle (+ rip 56)))
+
+(check (test/error 64 #vu8(#x8F #xEA #xF8 #x12 #xC0 #x00 #x00 #x00 #x00))
+       => '(lwpins rax eax #x0))
+
+(check (test/error 64 #vu8(#x8F #xE9 #x68 #x90 #xC1))
+       => '(vprotb xmm0 xmm1 xmm2))
+
+(check (test/error 64 #vu8(#xC4 #xA1 #x7A #x11 #x84 #x23 #xAC #x05 #x00 #x00))
+       => '(vmovss (mem64+ rbx #x5AC (* r12 #x1)) xmm0))
+
 (check-report)

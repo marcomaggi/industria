@@ -31,7 +31,7 @@
 ;; an operand that can be used to decide the operand size, no such
 ;; suffix is necessary.
 
-(library (weinholt disassembler x86 (1 1 20120201))
+(library (weinholt disassembler x86 (1 1 20120225))
   (export get-instruction invalid-opcode?)
   (import (except (rnrs) get-u8)
           (srfi :39 parameters)
@@ -923,7 +923,7 @@ translate-displacement."
                             (VEX-vvvv byte1 mode)
                             (VEX2->prefixes prefixes mode byte1))))
 
-            ((and (eqv? opcode #x8F) (eq? opcode-table opcodes)
+            ((and (eq? instr (vector-ref opcodes #x8F)) ;ugly
                   (lookahead-is-valid-XOP? port))
              ;; Three-byte XOP prefix
              (let* ((byte1 (get-u8 port))

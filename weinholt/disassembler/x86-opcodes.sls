@@ -105,7 +105,7 @@
 ;; For Intel AVX instructions, the opcode syntaxes K, KW, WK, B, BW,
 ;; WB, In have been used and are not official.
 
-(library (weinholt disassembler x86-opcodes (1 0 20120201))
+(library (weinholt disassembler x86-opcodes (1 0 20120225))
   (export opcodes pseudo-mnemonics mnemonic-aliases
           lock-instructions
           branch-hint-instructions
@@ -458,7 +458,7 @@
                         #f))
          #(Prefix #(VEX (movups Wps Vps) (vmovups Wps Vps))
                   #(VEX (movss Wss Vss)
-                        #(Mem/reg (vmovss Mq Wss) (vmovss Wss Bss Vss))
+                        #(Mem/reg (vmovss Mq Vss) (vmovss Wss Bss Vss))
                         #f)
                   #(VEX (movupd Wpd Vpd) (vmovupd Wpd Vpd))
                   #(VEX (movsd Wsd Vsd)
