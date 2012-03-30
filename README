@@ -7,10 +7,7 @@ etc.), zip/gzip/zlib decompression, disassembly of amd64 machine code,
 Off-The-Record messaging, bytevector pack/unpack syntax, TLS
 connections via custom binary ports, and more.
 
-Here's the project website:
-<https://code.launchpad.net/~weinholt/scheme-libraries/industria>
-
-Here's an alternative website: <https://weinholt.se/industria/>.
+Here's Industria's website: <https://weinholt.se/industria/>.
 
 * DOCUMENTATION
 For the complete manual, please see the Texinfo document in the
