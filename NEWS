@@ -1,5 +1,13 @@
 -*- mode: outline; coding: utf-8 -*-
 
+* Changes in version X
+
+Previous versions of Industria were licensed under the GNU GPL v3 or
+later. Starting with this release it is instead available under the
+MIT license. See LICENSE.txt for details.
+
+** (weinholt disassembler x86): jnle was misinterpreted as XOP
+
 * Changes in version 1.3
 
 ** (weinholt crypto crc): Pre-defined the crc-64/ecma polynomial

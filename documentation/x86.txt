@@ -1,27 +1,10 @@
 -*- coding: utf-8; mode: outline -*-
 
-This documents the (weinholt assembler x86) library for R6RS
-Scheme.
+This almost documents the (weinholt assembler x86) library.
 
 It’s not yet ready to use! Features are missing and it has not been
 debugged. Lots of instructions can’t be generated. And this manual
-needs some QA.
-
-* LICENSING
-Copyright © 2008, 2009 Göran Weinholt <goran@weinholt.se>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+needs to be moved into the proper manual.
 
 * What the assembler does
 Currently the assembler can operate in 32-bit and 64-bit mode. It
@@ -32,9 +15,6 @@ binary.
 * TODOs
 ** Output ELF relocatable object files?
 I personally don’t need this right now.
-
-** Dump the symbol table
-This could be useful to make it easier to use gdb.
 
 * Basic operation of the assembler
 (assemble '((cli))) => #vu8(250) #<hashtable>
