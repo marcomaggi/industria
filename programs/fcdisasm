@@ -28,13 +28,12 @@
 
 (import (rnrs)
         (only (srfi :1 lists) list-index)
-        (weinholt binfmt elf (1 (>= 0)))
-        #;(prefix (weinholt disassembler arm (1 (>= 0))) arm:)
-        (prefix (weinholt disassembler i8080 (1 (>= 0))) i8080:)
-        (prefix (weinholt disassembler m68hc12 (1 (>= 0))) m68hc12:)
-        (prefix (weinholt disassembler mips (1 (>= 0))) mips:)
-        (prefix (weinholt disassembler x86 (1 (>= 0))) x86:)
-        (only (weinholt disassembler x86 (1 (>= 0))) invalid-opcode?))
+        (weinholt binfmt elf)
+        (prefix (weinholt disassembler i8080) i8080:)
+        (prefix (weinholt disassembler m68hc12) m68hc12:)
+        (prefix (weinholt disassembler mips) mips:)
+        (prefix (weinholt disassembler x86) x86:)
+        (only (weinholt disassembler x86) invalid-opcode?))
 
 (define archs
   (list (cons "x86-16" (lambda (p c) (x86:get-instruction p 16 c)))

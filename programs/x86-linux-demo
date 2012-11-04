@@ -28,9 +28,9 @@
 (import (rnrs)
         (only (srfi :1 lists) list-index)
         (only (srfi :13 strings) string-contains)
-        (weinholt assembler x86 (1))
+        (weinholt assembler x86)
         (weinholt assembler elf)
-        (weinholt binfmt elf (1))
+        (weinholt binfmt elf)
         (weinholt struct pack))
 
 (define segments '(text data))

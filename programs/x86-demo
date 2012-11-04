@@ -26,7 +26,7 @@
 ;; by GNU GRUB or SYSLINUX's mboot module.
 
 (import (rnrs)
-        (weinholt assembler x86 (1 (>= 0) (>= 0))))
+        (weinholt assembler x86))
 
 (define << fxarithmetic-shift-left)
 

@@ -2,9 +2,27 @@
 
 * Changes in version X
 
+** New license terms
+
 Previous versions of Industria were licensed under the GNU GPL v3 or
-later. Starting with this release it is instead available under the
-MIT license. See LICENSE.txt for details.
+later. Starting with this release Industria is instead available under
+the MIT license. See LICENSE.txt for details.
+
+** Library versioning will be removed
+
+The library files in Industria have until now been using the library
+versioning feature of R6RS. This feature has not received the kind of
+support that I hoped for and is causing problems. The next version of
+Industria will not have version numbers. If your import statements
+look like this:
+
+  (import (weinholt disassembler i8080 (1 (>= 0)))
+          ...)
+
+Then you need to change them to look like this:
+
+  (import (weinholt disassembler i8080)
+          ...)
 
 ** (weinholt disassembler x86): jnle was misinterpreted as XOP
 
