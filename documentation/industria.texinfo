@@ -101,7 +101,6 @@ DEALINGS IN THE SOFTWARE.
 @menu
 * Installation::       Where to put all the files
 * Usage::              How to make it go
-* Versioning::         On avoiding horribly broken releases
 * Conflicting names::  When two exports have the same name
 @end menu
 
