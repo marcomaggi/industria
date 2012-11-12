@@ -22,16 +22,13 @@
 
 (library (weinholt net tcp)
   (export tcp-connect)
-  (import (rnrs))
-
-  (clr-using System.Net)
-  (clr-using System.Net.Sockets)
+  (import (rnrs)
+          (ironscheme))
 
   (define (tcp-connect host service)
     (let ((port (or (string->number service 10)
                     ;;; TODO: getservbyname
                     (error 'tcp-connect
                            "The service must be a numeric port." service))))
-      (let* ((c (clr-new TcpClient host port))
-             (s (clr-call TcpClient GetStream c)))
+      (let ((s (open-tcp-input/output-port host port #f)))
         (values s s)))))
