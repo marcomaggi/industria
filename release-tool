@@ -112,10 +112,12 @@
 
 (define *implementations* '(chezscheme
                             ikarus
+                            ironscheme
                             guile
                             larceny
                             mosh
                             mzscheme
+                            sagittarius
                             vicare
                             ypsilon))
 
@@ -525,11 +527,11 @@
 
 (define synopsis "Cryptography, compression, OTR, TLS, etc.")
 (define description
-  "Industria is a collection of portable R6RS Scheme libraries for \
-cryptography (AES, DES, Blowfish, HMAC, MD5, SHA-1, SHA-2, RSA, DSA, \
-etc.), zip/gzip/zlib decompression, disassembly of amd64 machine code, \
-SSH, Off-The-Record messaging, bytevector pack/unpack syntax, TLS \
-connections via custom binary ports, and more.")
+  "Industria is a collection of portable R6RS Scheme libraries for
+cryptography (AES, HMAC, SHA-1, SHA-2, RSA, DSA, ECDSA, etc.), zlib/xz
+decompression, disassemblers for various machine architectures,
+Off-The-Record messaging, bytevector pack/unpack syntax, TLS connections
+via custom binary ports, Secure Shell, and a few more things.")
 
 (define homepage "http://weinholt.se/industria/")
 
