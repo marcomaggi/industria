@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -33,7 +33,7 @@
 ;; The RRs NS, SOA, CNAME and PTR can contain compressed labels. But
 ;; some servers compress labels in SRVs and more, so maybe it's safe?
 
-(library (weinholt net dns types (1 0 20120818))
+(library (weinholt net dns types)
   (export dns-resource-wire-read
           dns-resource-wire-write
           ;; dns-resource-read

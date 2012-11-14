@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Advanced Encryption Standard (AES), FIPS-197.
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -80,7 +80,7 @@
 ;; }
 ;; http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.58.2363
 
-(library (weinholt crypto aes (1 0 20120818))
+(library (weinholt crypto aes)
   (export expand-aes-key aes-encrypt!
           reverse-aes-schedule aes-decrypt!
           clear-aes-schedule!

@@ -42,7 +42,7 @@
 ;; TODO: go through the implementation pitfalls in the RFC. check all
 ;; the MUSTs.
 
-(library (weinholt net tls (0 0 20121021))
+(library (weinholt net tls)
   (export make-tls-wrapper
           flush-tls-output
           put-tls-record get-tls-record

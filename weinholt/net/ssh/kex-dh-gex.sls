@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 ;; This handles diffie-hellman-group-exchange-sha256 and
 ;; diffie-hellman-group-exchange-sha1.
 
-(library (weinholt net ssh kex-dh-gex (1 0 20120818))
+(library (weinholt net ssh kex-dh-gex)
   (export register-kex-dh-gex
           select-kex-dh-gex-group       ;parameter
 

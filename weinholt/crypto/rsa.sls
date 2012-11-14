@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -30,7 +30,7 @@
 ;; TODO: key generation. must be very very very careful to get a good
 ;; random number generator for that
 
-(library (weinholt crypto rsa (1 1 20120818))
+(library (weinholt crypto rsa)
   (export make-rsa-public-key rsa-public-key?
           rsa-public-key-modulus
           rsa-public-key-public-exponent

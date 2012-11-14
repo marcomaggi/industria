@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; Disassembler for Intel 8080/8085
 
-(library (weinholt disassembler i8080 (1 0 20120818))
+(library (weinholt disassembler i8080)
   (export get-instruction)
   (import (rnrs)
           (only (srfi :1 lists) map-in-order)

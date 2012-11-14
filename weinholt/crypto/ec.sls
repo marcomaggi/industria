@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -34,7 +34,7 @@
 
 ;; No, 521 is not a typo.
 
-(library (weinholt crypto ec (1 0 20120818))
+(library (weinholt crypto ec)
   (export make-elliptic-prime-curve elliptic-prime-curve?
           elliptic-curve-a
           elliptic-curve-b

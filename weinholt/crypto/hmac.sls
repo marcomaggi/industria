@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; RFC 2104, FIPS-198-1.
 
-(library (weinholt crypto hmac (0 0 20120818))
+(library (weinholt crypto hmac)
   (export make-hmac)
   (import (rnrs))
 

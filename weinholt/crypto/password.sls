@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Password utilities
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -31,7 +31,7 @@
 ;; http://www.usenix.org/events/usenix99/provos.html
 ;; http://people.redhat.com/drepper/SHA-crypt.txt
 
-(library (weinholt crypto password (1 0 20120818))
+(library (weinholt crypto password)
   (export crypt)
   (import (rnrs)
           (only (srfi :1 lists) make-list circular-list take drop)

@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Bruce Schneier's Blowfish block cipher.
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -27,7 +27,7 @@
 ;; Keys can be between 8 and 448 bits. The key length does not affect
 ;; performance. Blocks are 8 bytes.
 
-(library (weinholt crypto blowfish (0 1 20120818))
+(library (weinholt crypto blowfish)
   (export expand-blowfish-key blowfish-encrypt!
           reverse-blowfish-schedule blowfish-decrypt!
           clear-blowfish-schedule!

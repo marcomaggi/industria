@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -24,7 +24,7 @@
 
 ;; TODO: avoid all this extra copying
 
-(library (weinholt net tls simple (1 0 20120818))
+(library (weinholt net tls simple)
   (export tls-connect start-tls)
   (import (rnrs)
           (weinholt bytevectors)

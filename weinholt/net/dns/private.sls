@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; Stuff that is needed by more than one of the DNS libraries
 
-(library (weinholt net dns private (1 0 20120818))
+(library (weinholt net dns private)
   (export put-labels parse-labels       ;wire format
           display-dns-label display-dns-string) ;master file format
   (import (rnrs)

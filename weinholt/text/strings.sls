@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -21,7 +21,7 @@
 #!r6rs
 
 
-(library (weinholt text strings (0 0 20120818))
+(library (weinholt text strings)
   (export string-split)
   (import (rnrs)
           (only (srfi :13 strings) string-index))

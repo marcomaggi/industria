@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Bytevector utilities
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -21,7 +21,7 @@
 ;; DEALINGS IN THE SOFTWARE.
 #!r6rs
 
-(library (weinholt bytevectors (1 0 20120818))
+(library (weinholt bytevectors)
   (export bytevector-append
           bytevectors-length
           bytevector-concatenate

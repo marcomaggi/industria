@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -25,7 +25,7 @@
 ;; RFC 4291 IP Version 6 Addressing Architecture.
 ;; RFC 5952 A Recommendation for IPv6 Address Text Representation.
 
-(library (weinholt text internet (1 0 20120818))
+(library (weinholt text internet)
   (export ipv4->string string->ipv4
           ipv6->string string->ipv6)
   (import (rnrs)

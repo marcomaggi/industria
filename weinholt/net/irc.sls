@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; An IRC parser library useful for both IRC clients and servers.
-;; Copyright © 2008, 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -43,7 +43,7 @@
 ;; and send all your replies as NOTICEs. IRC bots can get into wars
 ;; with each other if they send PRIVMSGs.
 
-(library (weinholt net irc (2 2 20120818))
+(library (weinholt net irc)
   (export irc-format-condition? irc-parse-condition?
           parse-message parse-message-bytevector
           format-message-raw format-message-and-verify

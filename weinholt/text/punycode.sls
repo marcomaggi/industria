@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -25,7 +25,7 @@
 ;; RFC3492 - Punycode: A Bootstring encoding of Unicode for
 ;; Internationalized Domain Names in Applications (IDNA)
 
-(library (weinholt text punycode (0 0 20120818))
+(library (weinholt text punycode)
   (export punycode->string string->punycode)
   (import (rnrs)
           (only (srfi :1 lists) split-at)

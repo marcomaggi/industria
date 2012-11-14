@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 ;; Disassembler for the Motorola 68HC12, 68HCS12, etc. Sometimes
 ;; called CPU12.
 
-(library (weinholt disassembler m68hc12 (1 0 20120818))
+(library (weinholt disassembler m68hc12)
   (export get-instruction)
   (import (except (rnrs) get-u8)
           (only (srfi :1 lists) map-in-order)

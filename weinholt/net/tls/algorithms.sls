@@ -22,7 +22,7 @@
 
 ;; Cryptographical algorithms for the TLS library
 
-(library (weinholt net tls algorithms (1 0 20121021))
+(library (weinholt net tls algorithms)
   (export
     tls-prf-md5-sha1
     tls-prf-sha256

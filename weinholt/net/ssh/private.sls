@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; Private parsing, formatting, public key algorithms, stuff
 
-(library (weinholt net ssh private (1 0 20120818))
+(library (weinholt net ssh private)
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data

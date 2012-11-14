@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -30,7 +30,7 @@
 ;; sent (the peer can just ignore that data). The message
 ;; channel-window-adjust is used to increase the window size.
 
-(library (weinholt net ssh connection (1 0 20120818))
+(library (weinholt net ssh connection)
   (export register-connection
 
           make-global-request global-request?

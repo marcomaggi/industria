@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2008, 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 ;; Auxiliary library for (weinholt struct). Please don't use this
 ;; library directly.
 
-(library (weinholt struct pack-aux (1 0 20120818))
+(library (weinholt struct pack-aux)
   (export format-size roundb add)
   (import (for (rnrs) (meta -1)))
 

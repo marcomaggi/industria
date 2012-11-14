@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -28,7 +28,7 @@
 ;; A little on how people implement X.509 differently:
 ;; http://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt
 
-(library (weinholt crypto x509 (0 0 20120818))
+(library (weinholt crypto x509)
   (export certificate?
           certificate-from-bytevector
           certificate-public-key

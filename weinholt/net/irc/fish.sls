@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -31,7 +31,7 @@
 
 ;; TODO: initiating key exchange
 
-(library (weinholt net irc fish (0 0 20120818))
+(library (weinholt net irc fish)
   (export fish-message? fish-decrypt-message fish-encrypt-message
           fish-key-init? fish-generate-key make-fish-key)
   (import (rnrs)

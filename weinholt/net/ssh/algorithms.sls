@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -44,7 +44,7 @@
 ;; This describes the MAC algorithm umac-64@openssh.com:
 ;; RFC4418 UMAC: Message Authentication Code using Universal Hashing
 
-(library (weinholt net ssh algorithms (1 0 20120818))
+(library (weinholt net ssh algorithms)
   (export make-reader make-writer
           make-read-mac make-write-mac
           make-key-exchanger register-key-exchange

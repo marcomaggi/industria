@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -138,7 +138,7 @@
 ;; The calls to bytevector-zero! are there to put in zeros where the
 ;; padding is. The bitwise-and is to align the indices.
 
-(library (weinholt struct pack (1 4 20120818))
+(library (weinholt struct pack)
   (export format-size pack pack! unpack get-unpack)
   (import (rnrs)
           (for (prefix (weinholt struct pack-aux (1 0)) aux:)

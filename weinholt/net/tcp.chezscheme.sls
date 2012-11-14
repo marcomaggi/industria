@@ -1,6 +1,6 @@
 #!r6rs
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -23,7 +23,7 @@
 ;; There is a proper way of doing TCP in Chez, and this is not it.
 ;; This is the embarrassing way. But it's useful for testing.
 
-(library (weinholt net tcp (0 0 20120818))
+(library (weinholt net tcp)
   (export tcp-connect)
   (import (chezscheme))
 

@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 ;; RFC4256 Generic Message Exchange Authentication for the Secure
 ;; Shell Protocol (SSH)
 
-(library (weinholt net ssh userauth (1 0 20120818))
+(library (weinholt net ssh userauth)
   (export register-userauth
           register-userauth-public-key
           register-userauth-password

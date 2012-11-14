@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -37,7 +37,7 @@
 ;; Each subkey also has a self-signature that binds it to the primary
 ;; key, and a self-signature that binds the primary key to the subkey.
 
-(library (weinholt crypto openpgp (1 1 20120818))
+(library (weinholt crypto openpgp)
   (export get-openpgp-keyring
           get-openpgp-keyring/keyid
           get-openpgp-detached-signature/ascii

@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -43,7 +43,7 @@
 
 ;; http://www.ietf.org/dyn/wg/charter/dnsext-charter.html
 
-(library (weinholt net dns (1 0 20120818))
+(library (weinholt net dns)
   (export print-dns-message print-dns-resource
           put-dns-message
           put-dns-message/delimited

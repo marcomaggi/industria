@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Slow implementation of the Data Encryption Standard (DES), FIPS 46.
-;; Copyright © 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -30,7 +30,7 @@
 ;; use the One True order (lowest bit is bit zero). Or maybe I'm just
 ;; doing it wrong... :)
 
-(library (weinholt crypto des (1 0 20120818))
+(library (weinholt crypto des)
   (export des-key-bad-parity? des! permute-key des-crypt
           tdea-permute-key tdea-encipher! tdea-decipher!
           tdea-cbc-encipher!

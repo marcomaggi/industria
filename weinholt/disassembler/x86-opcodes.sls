@@ -110,7 +110,7 @@
 ;; For Intel AVX instructions, the opcode syntaxes K, KW, WK, B, BW,
 ;; WB, In have been used and are not official.
 
-(library (weinholt disassembler x86-opcodes (1 0 20120818))
+(library (weinholt disassembler x86-opcodes)
   (export opcodes pseudo-mnemonics mnemonic-aliases
           lock-instructions
           branch-hint-instructions

@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -25,7 +25,7 @@
 ;; This handles diffie-hellman-group14-sha1 and
 ;; diffie-hellman-group1-sha1.
 
-(library (weinholt net ssh kexdh (1 0 20120818))
+(library (weinholt net ssh kexdh)
   (export register-kexdh
           make-kexdh-init kexdh-init? kexdh-init-e
           make-kexdh-reply kexdh-reply? kexdh-reply-f

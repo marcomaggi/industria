@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2008, 2009 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -20,7 +20,7 @@
 ;; DEALINGS IN THE SOFTWARE.
 #!r6rs
 
-(library (weinholt assembler x86-misc (1 0 0))
+(library (weinholt assembler x86-misc)
     (export make-modr/m make-sib bitwidth<=
             number->bytevector)
     (import (rnrs))

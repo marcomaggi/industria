@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; The Digital Signature Algorithm from FIPS Pub 186.
 
-(library (weinholt crypto dsa (1 0 20120818))
+(library (weinholt crypto dsa)
   (export make-dsa-public-key dsa-public-key?
           dsa-public-key-p
           dsa-public-key-q

@@ -36,7 +36,7 @@
 ;; an operand that can be used to decide the operand size, no such
 ;; suffix is necessary.
 
-(library (weinholt disassembler x86 (1 1 20120818))
+(library (weinholt disassembler x86)
   (export get-instruction invalid-opcode?)
   (import (except (rnrs) get-u8)
           (srfi :39 parameters)

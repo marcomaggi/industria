@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,7 +22,7 @@
 
 ;; Disassembler for some of MIPS II (big-endian).
 
-(library (weinholt disassembler mips (1 0 20120818))
+(library (weinholt disassembler mips)
   (export get-instruction)
   (import (rnrs)
           (weinholt disassembler private))

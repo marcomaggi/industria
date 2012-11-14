@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -82,7 +82,7 @@
 ;; Another example: the polynomial x^8 + x^2 + x + 1 in this syntax
 ;; becomes: (8 2 1 0)
 
-(library (weinholt crypto crc (1 2 20120818))
+(library (weinholt crypto crc)
   (export define-crc)
   (import (rnrs)
           (for (only (srfi :1 lists) iota) expand))

@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -37,7 +37,7 @@
 
 ;; TODO: proper conditions
 
-(library (weinholt net buffer (1 0 20120818))
+(library (weinholt net buffer)
   (export make-buffer
           buffer-read! buffer-copy!
           buffer-port buffer-port-set!

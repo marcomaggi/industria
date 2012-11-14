@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -32,7 +32,7 @@
 
 ;; TODO: http://permalink.gmane.org/gmane.ietf.secsh/6520 ?
 
-(library (weinholt crypto ssh-public-key (1 1 20120818))
+(library (weinholt crypto ssh-public-key)
   (export get-ssh-public-key
           ssh-public-key->bytevector
           ssh-public-key-fingerprint

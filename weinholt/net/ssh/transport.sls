@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -25,7 +25,7 @@
 ;; This contains only the parsing and formatting of the transport
 ;; layer messages. All the meat is in (weinholt net ssh).
 
-(library (weinholt net ssh transport (1 0 20120818))
+(library (weinholt net ssh transport)
   (export register-transport
 
           disconnect? make-disconnect disconnect-code
