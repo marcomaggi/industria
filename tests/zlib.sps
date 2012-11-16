@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 (import (rnrs)
         (srfi :78 lightweight-testing)
         (weinholt compression adler-32)
-        (weinholt compression zlib (0)))
+        (weinholt compression zlib))
 
 (define dicts
   (let ((d (string->utf8 "(library ))((import (rnrs (export (define (lambda ")))

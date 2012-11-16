@@ -35,7 +35,7 @@
             far-pointer-seg far-pointer-offset
             translate-operands operand-labels)
     (import (rnrs)
-            (weinholt assembler x86-misc (1 0 (>= 0))))
+            (weinholt assembler x86-misc))
 
 ;;; Register operands
 

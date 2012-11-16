@@ -25,7 +25,7 @@
 (library (weinholt assembler elf)
   (export elf-32-assembler elf-64-assembler)
   (import (rnrs)
-          (weinholt binfmt elf (1))
+          (weinholt binfmt elf)
           (weinholt struct pack))
 
   ;; 32-bit ELF

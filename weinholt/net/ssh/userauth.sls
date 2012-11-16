@@ -78,7 +78,7 @@
           (weinholt crypto rsa)
           (weinholt crypto ssh-public-key)
           (weinholt net buffer)
-          (weinholt net ssh private (1))
+          (weinholt net ssh private)
           (weinholt struct pack))
 
   ;; Message numbers

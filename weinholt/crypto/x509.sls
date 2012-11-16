@@ -53,7 +53,7 @@
           (weinholt crypto rsa)
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
-          (prefix (weinholt struct der (0 0)) der:)
+          (prefix (weinholt struct der) der:)
           (weinholt struct pack)
           (weinholt text base64))
 

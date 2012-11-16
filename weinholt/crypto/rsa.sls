@@ -69,7 +69,7 @@
           (weinholt bytevectors)
           (weinholt crypto entropy)
           (weinholt crypto math)
-          (prefix (weinholt struct der (0 0)) der:)
+          (prefix (weinholt struct der) der:)
           (weinholt text base64))
 
   (define (RSAPublicKey)

@@ -44,7 +44,7 @@
           dsa-signature-from-bytevector
           dsa-verify-signature
           dsa-create-signature)
-  (import (prefix (weinholt struct der (0 0)) der:)
+  (import (prefix (weinholt struct der) der:)
           (weinholt bytevectors)
           (weinholt crypto entropy)
           (weinholt crypto math)

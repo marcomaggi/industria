@@ -39,7 +39,7 @@
           (weinholt crypto dsa)
           (weinholt crypto ec)
           (weinholt crypto ec dsa)
-          (weinholt crypto rsa (1 (>= 1)))
+          (weinholt crypto rsa)
           (weinholt crypto sha-1)
           (weinholt crypto sha-2)
           (weinholt crypto ssh-public-key)

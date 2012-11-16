@@ -75,9 +75,9 @@
           (srfi :39 parameters)
           (weinholt bytevectors)
           (weinholt crypto entropy)
-          (weinholt net dns numbers (1))
-          (weinholt net dns types (1))
-          (weinholt net dns private (1))
+          (weinholt net dns numbers)
+          (weinholt net dns types)
+          (weinholt net dns private)
           (weinholt struct pack)
           (weinholt text punycode))
 

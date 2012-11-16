@@ -64,9 +64,9 @@
     (export assemble)
     (import (rnrs)
             (only (srfi :13 strings) string-index)
-            (weinholt assembler x86-operands (1 0 (>= 0)))
-            (weinholt assembler x86-misc (1 0 (>= 0)))
-            (weinholt disassembler x86-opcodes (1 0 (>= 0))))
+            (weinholt assembler x86-operands)
+            (weinholt assembler x86-misc)
+            (weinholt disassembler x86-opcodes))
 
   (define-syntax print
     (syntax-rules ()

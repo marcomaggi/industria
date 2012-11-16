@@ -33,9 +33,9 @@
           make-kex-dh-key-exchanger)
   (import (rnrs)
           (weinholt crypto dh)
-          (weinholt crypto sha-1 (1 (>= 1)))
+          (weinholt crypto sha-1)
           (weinholt crypto ssh-public-key)
-          (weinholt net ssh private (1)))
+          (weinholt net ssh private))
 
 ;;; Messages
 

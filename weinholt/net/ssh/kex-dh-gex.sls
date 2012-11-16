@@ -61,7 +61,7 @@
 
           (weinholt crypto ssh-public-key)
 
-          (weinholt net ssh private (1)))
+          (weinholt net ssh private))
 
   ;; Used by the server part to pick a D-H group. These should really
   ;; be custom generated groups. In OpenSSH they distribute a long

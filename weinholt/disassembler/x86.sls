@@ -40,8 +40,8 @@
   (export get-instruction invalid-opcode?)
   (import (except (rnrs) get-u8)
           (srfi :39 parameters)
-          (weinholt disassembler private (0 0))
-          (weinholt disassembler x86-opcodes (1 0 (>= 0))))
+          (weinholt disassembler private)
+          (weinholt disassembler x86-opcodes))
 
   (define debug #f)
 

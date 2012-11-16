@@ -78,7 +78,7 @@
           SSH-DISCONNECT-ILLEGAL-USER-NAME)
   (import (rnrs)
           (weinholt net buffer)
-          (weinholt net ssh private (1))
+          (weinholt net ssh private)
           (weinholt struct pack))
 
   (define SSH-MSG-DISCONNECT 1)

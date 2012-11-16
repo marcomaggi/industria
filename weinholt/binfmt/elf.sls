@@ -105,7 +105,7 @@
           STT-LOOS STT-HIOS STT-LOPROC STT-HIPROC)
   (import (rnrs)
           (only (srfi :1 lists) iota)
-          (weinholt struct pack (1 (>= 3))))
+          (weinholt struct pack))
 
 ;;; Utilities
 
