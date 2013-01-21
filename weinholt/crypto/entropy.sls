@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -36,7 +36,7 @@
           bytevector-randomize!
           random-positive-byte
           string-random-case
-          random-integer)               ;re-exported
+          (rename (rand random-integer)))
   (import (rnrs)
           (only (srfi :13 strings) string-map)
           (srfi :26 cut)
