@@ -398,7 +398,9 @@ message size, e.g.@: IRC.
 If an @var{instance-tag} is specified it must be a 32-bit integer not
 less than @code{#x100}. If it is omitted or @code{#f} an instance tag
 will be randomly generated. OTR version 3 uses the instance tags to
-identify which OTR state messages belongs to. New for Industria 1.5.
+identify which OTR state messages belongs to. Be sure to read the
+documentation for @code{otr-state-our-instance-tag}. New for Industria
+1.5.
 
 If @var{versions} is not omitted it must be a list of acceptable OTR
 protocol versions. The default is @code{(2 3)}. New for Industria 1.5.
@@ -601,6 +603,17 @@ not support OTR then hopefully it will not show the whitespaces.
 The @var{versions} argument specifies which OTR protocol versions
 should be present in the tag. This can either be a list of version
 numbers or the symbol @code{all}.
+@end deffn
+
+@deffn Procedure otr-state-our-instance-tag state
+This returns the local instance tag. It is new for Industria 1.5.
+
+It is intended for instance tags to be persistent across client
+restarts. If the local party crashes then the remote party may still
+have an OTR session established. If the local client were then to
+change its instance tag on restart it would not receive any messages
+from the remote party and would not send error messages. To the remote
+party it would look like they were being ignored.
 @end deffn
 
 Isn't this the most boring manual you've ever read?

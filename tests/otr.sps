@@ -26,6 +26,7 @@
 (import (rnrs)
         (srfi :78 lightweight-testing)
         (weinholt crypto dsa)
+        (weinholt crypto entropy)
         (weinholt net otr)
         (weinholt text base64))
 
@@ -90,12 +91,14 @@ daOZBopKox5oXEbXK0gw
               (lp* (cdr Xq))))))))
 
 (define (run-test first-message)
-  (define Alice (make-otr-state key1 160)) ;test fragmentation
-  (define Bob (make-otr-state key2 200))
+  (define Alice (make-otr-state key1 (+ 30 (random-integer 200)))) ;test fragmentation
+  (define Bob (make-otr-state key2 +inf.0))
 
-  (display "Testing ")
-  (display first-message)
-  (newline)
+  (define dummy                         ;appease release-tool
+    (begin
+      (display "Testing ")
+      (display first-message)
+      (newline)))
 
   ;; Alice wants to chat with Bob
   (check (begin (otr-update! Alice first-message)
@@ -117,12 +120,11 @@ daOZBopKox5oXEbXK0gw
          '((Alice encrypted . "Hello, I am Bob!")))
 
   ;; Request to use the extra symmetric key.
-  (when (equal? first-message "?OTRv3?")
-    (check (begin (otr-send-symmetric-key-request! Alice 42 #vu8(0 1))
-                  (shuffle Alice Bob 'Alice 'Bob))
-           =>
-           '((Bob symmetric-key-request . (42 . #vu8(0 1)))))
-    (check (otr-state-symmetric-key Alice) => (otr-state-symmetric-key Bob)))
+  (check (begin (otr-send-symmetric-key-request! Alice 42 #vu8(0 1))
+                (shuffle Alice Bob 'Alice 'Bob))
+         =>
+         '((Bob symmetric-key-request . (42 . #vu8(0 1)))))
+  (check (otr-state-symmetric-key Alice) => (otr-state-symmetric-key Bob))
 
   ;; Alice starts S-M-P
   (check (begin (otr-authenticate! Alice (string->utf8 "Waterloo"))
@@ -148,7 +150,9 @@ daOZBopKox5oXEbXK0gw
                 (shuffle Alice Bob 'Alice 'Bob))
          =>
          '((Alice authentication . #f)
-           (Bob authentication . #f))))
+           (Bob authentication . #f)))
+
+  #t)
 
 (run-test (otr-tag #f '(2)))
 (run-test (otr-tag #f '(3)))

@@ -48,6 +48,7 @@
           otr-format-session-id
           otr-state-mss otr-state-mss-set!
           otr-state-symmetric-key
+          otr-state-our-instance-tag
           otr-tag)
   (import (except (rnrs) bytevector=?)
           (only (srfi :1 lists) iota map-in-order
@@ -428,34 +429,67 @@
       (otr-state-mackeys-set! state remembered)
       (map cdr forgotten)))
 
-  (define (fragment outmsg mss version our-tag their-tag)
-    ;; Splits an outgoing message into pieces that fit in the maximum
-    ;; message size. There can't be any commas in outmsg and the total
-    ;; number of fragments is at most 65536. The minimum mss depends
-    ;; on the protocol version.
-    (if (<= (string-length outmsg) mss)
-        (list outmsg)
-        (let ((mss (- mss (if (eqv? version otr-version-2)
-                              (string-length "?OTR,65535,65535,,")
-                              (string-length "?OTR|ffffffff|ffffffff,65535,65535,,")))))
-          (let lp ((pieces '())
-                   (outmsg outmsg))
-            (if (<= (string-length outmsg) mss)
-                (let* ((pieces (cons outmsg pieces))
-                       (total (length pieces)))
-                  (map (lambda (p i)
-                         (if (eqv? version otr-version-2)
-                             (string-append "?OTR," (number->string i)
-                                            "," (number->string total)
-                                            "," p ",")
-                             (string-append "?OTR|" (number->string our-tag 16)
-                                            "|" (number->string their-tag 16)
-                                            "," (number->string i)
-                                            "," (number->string total)
-                                            "," p ",")))
-                       (reverse pieces) (iota total 1)))
-                (lp (cons (substring outmsg 0 mss) pieces)
-                    (substring outmsg mss (string-length outmsg))))))))
+  ;; Splits an outgoing message into pieces that fit in the maximum
+  ;; message size. There can't be any commas in outmsg and the total
+  ;; number of fragments is at most 65536. The minimum mss depends on
+  ;; the protocol version.
+  (define (fragment msg mss version our-tag their-tag)
+    (if (<= (string-length msg) mss)
+        (list msg)
+        (let* ((prefix (if (eqv? version otr-version-2)
+                           "?OTR,"
+                           (string-append "?OTR|" (number->string our-tag 16)
+                                          "|" (number->string their-tag 16)
+                                          ",")))
+               (n (total-fragments (string-length msg) mss (string-length prefix))))
+          (when (not n)
+            (error 'fragment "It is not possible to fragment this data."
+                   (string-length msg) mss version our-tag their-tag))
+          (let lp ((k 1) (idx 0))
+            (cond ((>= idx (string-length msg))
+                   '())
+                  (else
+                   (assert (<= k n))
+                   (let* ((hdr (string-append prefix (number->string k)
+                                              "," (number->string n) ","))
+                          (end (min (string-length msg)
+                                    (+ idx (- mss (string-length hdr) 1)))))
+                     (cons (string-append hdr (substring msg idx end) ",")
+                           (lp (+ k 1) end)))))))))
+
+  ;; Compute the exact total number of fragments that will be needed to
+  ;; fragment a message of len bytes, given the prefix length. Return #f
+  ;; if it's not possible (if the total number of fragments grows too
+  ;; large or the mss is too small).
+  (define (total-fragments len mss prefix-length)
+    (define (capacity k-len n-len)
+      ;; The capacity of fragment k,n.
+      (- mss (+ prefix-length k-len n-len 3)))
+    (define (commit-capacity k-len n-len)
+      ;; The total capacity of the fragments where k-len != n-len.
+      (if (= k-len n-len)
+          0
+          (+ (* 9 (expt 10 (- k-len 1)) (capacity k-len n-len))
+             (commit-capacity (+ k-len 1) n-len))))
+    (define (fragments n-len)
+      ;; The total number of fragments needed to transport len bytes in
+      ;; mss packets. The first part of the sum is the number of
+      ;; fragments used by commit-capacity.
+      (let ((cap (capacity n-len n-len)))
+        (and (> cap 0)
+             (+ (- (expt 10 (- n-len 1)) 1)
+                (ceiling (/ (- len (commit-capacity 1 n-len))
+                            cap))))))
+    (define (try n-len max)
+      (let ((frags (fragments n-len)))
+        (and frags (<= frags max) frags)))
+    (cond ((<= len mss) 1)
+          ((try 1 9))
+          ((try 2 99))
+          ((try 3 999))
+          ((try 4 9999))
+          ((try 5 65536))
+          (else #f)))
 
   (define (hash-public-key pubkey)
     (let ((pub (dsa-public-key->bytevector pubkey))
