@@ -382,7 +382,7 @@ look up the OTR state that corresponds to the remote party (possibly
 make a new state) and call @code{otr-update!}.
 @end deffn
 
-@deffn Procedure make-otr-state dsa-key mss
+@deffn Procedure make-otr-state dsa-key mss [instance-tag [versions]]
 Creates an OTR state value given the private DSA key @var{dsa-key} and
 a maximum segment size @var{mss}. The state is used to keep track of
 session keys and incoming message fragments.
@@ -394,6 +394,14 @@ DSA key will work. @xref{crypto dsa}.
 The maximum segment size @var{mss} is used to split long OTR messages
 into smaller parts when OTR is used over a protocol with a maximum
 message size, e.g.@: IRC.
+
+If an @var{instance-tag} is specified it must be a 32-bit integer not
+less than @code{#x100}. If it is omitted or @code{#f} an instance tag
+will be randomly generated. OTR version 3 uses the instance tags to
+identify which OTR state messages belongs to. New for Industria 1.5.
+
+If @var{versions} is not omitted it must be a list of acceptable OTR
+protocol versions. The default is @code{(2 3)}. New for Industria 1.5.
 @end deffn
 
 @deffn Procedure otr-update! state str
@@ -403,7 +411,7 @@ scheduled events.
 @end deffn
 
 @deffn Procedure otr-send-encrypted! state msg
-@c tlv ...
+@c [flags [tlv]] ...
 This is used to send a message to the remote party. It encrypts and
 enqueues the @var{msg} bytevector and updates the @var{state}.
 Use @code{otr-empty-queue!} to retrieve the encrypted and formatted
@@ -499,8 +507,13 @@ that a message was sent out of order.
 protocol error and sent a plaintext error message (probably in
 English).
 @item
-@t{(local-error . }@emph{con}@t{)} -- The was an exception raised
-during processing of a message. The @code{cdr} is the condition value.
+@t{(local-error . }@emph{con}@t{)} -- There was an exception raised
+during processing of a message. The @code{cdr} is the condition object.
+@item
+@t{(symmetric-key-request . }@emph{@t{(}@emph{protocol}@t{ . }@emph{data}@t{)}}@t{)}
+ -- The remote party has requested that the extra symmetric
+key be used to communicate in some out-of-band protocol. See
+@code{otr-send-symmetric-key-request!}. New for Industria 1.5.
 @end itemize
 
 For forward-compatibility you should ignore any pair with an unknown
@@ -540,6 +553,11 @@ The first part of the ID should be shown in bold if the session was
 initiated by the local party. Otherwise the second part should be bold.
 @end deffn
 
+@deffn Procedure otr-state-version state
+The OTR protocol version used by the state. This is either the integer
+@code{2} or the integer @code{3}. New for Industria 1.5.
+@end deffn
+
 @deffn Procedure otr-state-mss state
 Returns the current maximum segment size of the OTR state.
 @end deffn
@@ -548,14 +566,54 @@ Returns the current maximum segment size of the OTR state.
 Sets @var{int} as the maximum segment size of the OTR state.
 @end deffn
 
+OTR protocol version 3 defines an extra symmetric key.
+
+@deffn Procedure otr-send-symmetric-key-request! state protocol data
+This sends a message to the remote party that requests that it uses
+the extra symmetric key for some out-of-band protocol.
+
+The remote party may ignore this request if the OTR protocol version
+(as returned by @code{otr-state-version}) is not at least 3.
+
+The @var{protocol} parameter is an unsigned 32-bit integer that
+indicates what the key should be used for. At the time this manual is
+written there are no defined uses. One might expect a list of uses to
+appear in the protocol documentation at
+@url{http://www.cypherpunks.ca/otr/}.
+
+The @var{data} parameter is a bytevector containing protocol-dependent
+data.
+@end deffn
+
+@deffn Procedure otr-state-symmetric-key state
+This returns the extra symmetric key in the form of a 256-bit bytevector.
+@end deffn
+
+@deffn Procedure otr-tag whitespace? versions
+Constructs a string that may be sent to a remote party as a request to
+start an OTR session. New for Industria 1.5.
+
+If @var{whitespace?} is true then a whitespace tag will be made. This
+tag may be appended to a normal message sent by the user. If the
+recipient's client supports OTR it may start a session, but if it does
+not support OTR then hopefully it will not show the whitespaces.
+
+The @var{versions} argument specifies which OTR protocol versions
+should be present in the tag. This can either be a list of version
+numbers or the symbol @code{all}.
+@end deffn
+
 Isn't this the most boring manual you've ever read?
 
 @noindent
 Version history:
 @itemize
 @item
-@code{(0 0)} -- Initial version. Lacks a few sanity checks which might
-make it unsafe.
+Industria 1.5 introduced support for protocol version 3. This new
+version of the protocol uses instance tags, which are used to
+distinguish between different OTR sessions. This fixes a problem with
+chat networks that allow multiple logins. The new version also defines
+an extra symmetrical key that can be used by out-of-band protocols.
 @end itemize
 
 

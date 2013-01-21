@@ -1,5 +1,15 @@
 -*- mode: outline; coding: utf-8 -*-
 
+* Changes in version 1.5
+
+** (weinholt net otr): Support for OTR version 3
+
+This release supports Off-the-Record Messaging Protocol version 3.
+This new version of the protocol uses instance tags, which are used to
+distinguish between different OTR sessions. This fixes a problem with
+chat networks that allow multiple logins. The new version also defines
+an extra symmetrical key that can be used by out-of-band protocols.
+
 * Changes in version 1.4
 
 ** New license terms

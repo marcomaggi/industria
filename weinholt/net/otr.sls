@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -20,7 +20,7 @@
 ;; DEALINGS IN THE SOFTWARE.
 #!r6rs
 
-;; Off-the-Record Messaging Protocol version 2
+;; Off-the-Record Messaging Protocol versions 2 and 3
 
 ;; http://www.cypherpunks.ca/otr/Protocol-v2-3.1.0.html
 
@@ -30,20 +30,25 @@
 ;; using our own DSA key?
 ;; TODO: finishing sessions.
 ;; TODO: let the library user decide what errors to send
+;; TODO: search for "learn" and see if that code is right
 
 (library (weinholt net otr)
   (export otr-message?
           otr-update!
           otr-send-encrypted!
+          otr-send-symmetric-key-request!
           otr-authenticate!
           otr-empty-queue!
           make-otr-state
+          otr-state-version
           otr-state-their-dsa-key
           otr-state-our-dsa-key
           otr-state-secure-session-id
           otr-hash-public-key
           otr-format-session-id
-          otr-state-mss otr-state-mss-set!)
+          otr-state-mss otr-state-mss-set!
+          otr-state-symmetric-key
+          otr-tag)
   (import (except (rnrs) bytevector=?)
           (only (srfi :1 lists) iota map-in-order
                 alist-delete take)
@@ -192,7 +197,8 @@
            (m1 (h2 2 secbytes))
            (m2 (h2 3 secbytes))
            (m1* (h2 4 secbytes))
-           (m2* (h2 5 secbytes)))
+           (m2* (h2 5 secbytes))
+           (extra (h2 #xff secbytes)))  ;OTRv3 extra symmetric key
       ;; XXX: can't actually erase the result of expt-mod and so on...
       (bytevector-fill! secbytes 0)
       (bytevector-fill! key-material 0)
@@ -200,17 +206,27 @@
             (c* (expand-aes-key aeskey*)))
         (bytevector-fill! aeskey 0)
         (bytevector-fill! aeskey* 0)
-        (values ssid c c* m1 m2 m1* m2*))))
+        (values ssid c c* m1 m2 m1* m2* extra))))
 
 ;;;
 
-  (define otr-version #x0002)
+  (define otr-version-2 #x0002)
+
+  (define otr-version-3 #x0003)
 
   (define whitespace-prefix
     (string-append "\x20;\x09;\x20;\x20;\x09;\x09;\x09;\x09;"
                    "\x20;\x09;\x20;\x09;\x20;\x09;\x20;\x20;"))
 
   (define v2-tag "\x20;\x20;\x09;\x09;\x20;\x20;\x09;\x20;")
+
+  (define v3-tag "\x20;\x20;\x09;\x09;\x20;\x20;\x09;\x09;")
+
+  (define v1-byte-id #\?)
+
+  (define v2-byte-id #\2)
+
+  (define v3-byte-id #\3)
 
   ;; Diffie-Hellman modulus and generator. Diffie-Hellman Group 5 from
   ;; RFC 3526.
@@ -234,6 +250,7 @@
   (define msg-data #x03)
 
   ;; Data message flags
+  (define flag-none              #b00000000)
   (define flag-ignore-unreadable #b00000001)
 
   ;; Key types
@@ -247,23 +264,35 @@
   (define tlv-smp-3 #x0004)
   (define tlv-smp-4 #x0005)
   (define tlv-smp-abort #x0006)
-  ;; This one is not in the specification, but it's in libotr 3.2.0's
-  ;; UPGRADING. Supposedly contains a question, but is otherwise like
-  ;; #x0002.
-  (define tlv-smp-1q #x0007)
+  (define tlv-smp-1q #x0007)            ;tlv-smp-1 with a question
+  (define tlv-symmetric-key #x0008)     ;compute extra symmetric key
 
   (define (smp-tlv? i)
     (memv (car i) (list tlv-smp-1 tlv-smp-2 tlv-smp-3 tlv-smp-4
                         tlv-smp-abort tlv-smp-1q)))
 
+  (define (valid-instance-tag? tag)
+    (<= #x100 tag #xffffffff))
+
+  (define (valid-sender-instance-tag? tag)
+    (not (<= tag #x100)))
+
+  (define (valid-recipient-instance-tag? tag)
+    (or (zero? tag) (valid-instance-tag? tag)))
+
   (define-record-type otr-state
     (opaque #t)
-    (nongenerative otr-state-92d95444-59ad-4658-9d3f-8d605ad87180)
-    (fields (immutable our-dsa-key)
+    (nongenerative otr-state-d954f9bd-dcb8-403d-a9cc-28df3c4de9bf)
+    (fields (immutable acceptable-versions)
+            (mutable version)
+            (immutable our-dsa-key)
             (mutable their-dsa-key)
             (mutable secure-session-id)
             ;; Maximum segment size
             (mutable mss)
+            ;; Client instance tags
+            (mutable our-instance-tag)
+            (mutable their-instance-tag)
             ;; De-fragmentation buffer
             (mutable frag-n)
             (mutable frag-k)
@@ -283,23 +312,36 @@
             (mutable their-ctr)
             (mutable our-ctr)
             ;; SMP state
-            (mutable smp))
+            (mutable smp)
+            ;; OTRv3 extra symmetric key
+            (mutable symmetric-key))
     (protocol
      (lambda (p)
-       (lambda (dsa-key mss)
+       (define (make dsa-key mss instance-tag acceptable-versions)
          (assert (dsa-private-key? dsa-key))
          ;; The DSA keys have to have a 160-bit q-parameter, or the
          ;; reference implementation will reject the signatures. A
          ;; 1024-bit DSA key will probably be OK.
          (assert (= 160 (bitwise-length (dsa-private-key-q dsa-key))))
-         (p dsa-key #f 0 mss
-            0 0 '()
-            '()
-            plaintext-state
-            '() '() 0 '()
-            '()
-            '() 0
-            #f)))))
+         (let ((instance-tag (or instance-tag (+ #x100 (random-integer (- (expt 2 32) #x100))))))
+           (assert (valid-instance-tag? instance-tag))
+           (p acceptable-versions
+              #f dsa-key #f 0 mss
+              instance-tag 0
+              0 0 '()
+              '()
+              plaintext-state
+              '() '() 0 '()
+              '()
+              '() 0
+              #f #f)))
+       (case-lambda
+         ((dsa-key mss)
+          (make dsa-key mss #f '(2 3)))
+         ((dsa-key mss instance-tag)
+          (make dsa-key mss instance-tag '(2 3)))
+         ((dsa-key mss instance-tag acceptable-versions)
+          (make dsa-key mss instance-tag acceptable-versions))))))
 
   (define-record-type smp-state
     (opaque #t)
@@ -316,7 +358,7 @@
   ;;             whitespace-start-ake error-start-ake)
   ;;   otr-policy)
 
-  (define (set-established! state ssid our-keyid y Y their-keyid X their-dsa-key)
+  (define (set-established! state ssid our-keyid y Y their-keyid X their-dsa-key extra)
     (otr-state-our-keys-set! state (list (cons our-keyid y)))
     (otr-state-our-pubkeys-set! state (list (cons our-keyid Y)))
     (otr-state-their-pubkeys-set! state (list (cons their-keyid X)))
@@ -325,9 +367,11 @@
     (otr-state-their-ctr-set! state '())
     (otr-state-our-ctr-set! state 0)
     (otr-state-our-latest-acked-set! state our-keyid)
-    (otr-state-smp-set! state (make-smp-state)))
+    (otr-state-smp-set! state (make-smp-state))
+    (otr-state-symmetric-key-set! state extra))
 
   (define (forget-session! state)
+    (otr-state-version-set! state #f)
     (otr-state-our-keys-set! state '())
     (otr-state-our-pubkeys-set! state '())
     (otr-state-their-pubkeys-set! state '())
@@ -336,7 +380,8 @@
     (otr-state-their-ctr-set! state '())
     (otr-state-our-ctr-set! state 0)
     (otr-state-our-latest-acked-set! state 0)
-    (otr-state-smp-set! state #f))
+    (otr-state-smp-set! state #f)
+    (otr-state-symmetric-key-set! state #f))
 
   ;; Verify that an incoming counter value is larger than the previous
   ;; value used for these key ids.
@@ -383,22 +428,31 @@
       (otr-state-mackeys-set! state remembered)
       (map cdr forgotten)))
 
-
-  (define (fragment outmsg mss)
+  (define (fragment outmsg mss version our-tag their-tag)
     ;; Splits an outgoing message into pieces that fit in the maximum
-    ;; message size. TODO: maximize space usage.
-    (if (< (string-length outmsg) mss)
+    ;; message size. There can't be any commas in outmsg and the total
+    ;; number of fragments is at most 65536. The minimum mss depends
+    ;; on the protocol version.
+    (if (<= (string-length outmsg) mss)
         (list outmsg)
-        (let ((mss (- mss (string-length "?OTR,12345,12345,,"))))
+        (let ((mss (- mss (if (eqv? version otr-version-2)
+                              (string-length "?OTR,65535,65535,,")
+                              (string-length "?OTR|ffffffff|ffffffff,65535,65535,,")))))
           (let lp ((pieces '())
                    (outmsg outmsg))
             (if (<= (string-length outmsg) mss)
                 (let* ((pieces (cons outmsg pieces))
                        (total (length pieces)))
                   (map (lambda (p i)
-                         (string-append "?OTR," (number->string i)
-                                        "," (number->string total)
-                                        "," p ","))
+                         (if (eqv? version otr-version-2)
+                             (string-append "?OTR," (number->string i)
+                                            "," (number->string total)
+                                            "," p ",")
+                             (string-append "?OTR|" (number->string our-tag 16)
+                                            "|" (number->string their-tag 16)
+                                            "," (number->string i)
+                                            "," (number->string total)
+                                            "," p ",")))
                        (reverse pieces) (iota total 1)))
                 (lp (cons (substring outmsg 0 mss) pieces)
                     (substring outmsg mss (string-length outmsg))))))))
@@ -435,9 +489,13 @@
 
   (define (send msg)
     (assert (bytevector? msg))
-    (for-each (cut queue-data 'outgoing <>)
-              (fragment (string-append "?OTR:" (base64-encode msg) ".")
-                        (otr-state-mss (*state*)))))
+    (let ((state (*state*)))
+      (for-each (cut queue-data 'outgoing <>)
+                (fragment (string-append "?OTR:" (base64-encode msg) ".")
+                          (otr-state-mss state)
+                          (otr-state-version state)
+                          (otr-state-our-instance-tag state)
+                          (otr-state-their-instance-tag state)))))
 
   ;; Send an error message to the correspondent. It will probably be
   ;; shown verbatim, or perhaps it will be translated if it matches
@@ -471,7 +529,7 @@
   (define (next-state proc . args)
     ;; Set the procedure that handles the next incoming message.
     (otr-state-k-set! (*state*) (lambda (p) (apply proc p args))))
-  
+
 ;;; Socialist Milllionaire's Protocol
 
   ;; The state transitions are much simpler here so continuations are
@@ -509,9 +567,10 @@
     ;; along with the next user message? Might complicate the API, but
     ;; might also save some bandwidth because of the next-key
     ;; overhead.
-    (otr-send-encrypted! (*state*) "" (tlv-encode type (apply bytevector-append
-                                                              (pack "!L" (length ints))
-                                                              (map uint->mpi ints)))))
+    (otr-send-encrypted! (*state*) "" flag-none
+                         (tlv-encode type (apply bytevector-append
+                                                 (pack "!L" (length ints))
+                                                 (map uint->mpi ints)))))
 
   (define (smp-goto next)
     (smp-state-next-set! (otr-state-smp (*state*)) next))
@@ -579,7 +638,7 @@
                                 n)))
       (error 'smp-check-logarithm-eq-proof
              "Invalid logarithm equality proof")))
-  
+
   ;; This takes one TLV from the correspondent and carefully crafts a
   ;; witty reply.
   (define (handle-smp tlv)
@@ -590,7 +649,8 @@
              (queue-data 'authentication 'aborted-by-them))
             (else
              (queue-data 'authentication 'aborted-by-us)
-             (otr-send-encrypted! (*state*) "" (tlv-encode tlv-smp-abort #vu8())))))
+             (otr-send-encrypted! (*state*) "" flag-none
+                                  (tlv-encode tlv-smp-abort #vu8())))))
     (define (get-ints)
       (let ((p (open-bytevector-input-port (cdr tlv))))
         (apply values (map-in-order
@@ -762,6 +822,47 @@
 
 ;;; Everything below here deals with decoding and encoding messages
 
+  (define (message-header msg-type)
+    (let* ((state (*state*))
+           (version (otr-state-version state)))
+      (cond ((eqv? version otr-version-2)
+             (pack "!SC" version msg-type))
+            ((eqv? version otr-version-3)
+             (pack "!uSC LL" version msg-type
+                   (otr-state-our-instance-tag (*state*))
+                   (otr-state-their-instance-tag (*state*))))
+            (else
+             (error 'message-header
+                    "Internal error: the OTR version has not been set")))))
+
+  (define (get-message-type p)
+    (let* ((state (*state*))
+           (version (otr-state-version state)))
+      (cond
+        ((eqv? version otr-version-2)
+         ;; Version 2 does not use instance tags.
+         (get-unpack p "C"))
+        (else
+         ;; Verify sender and recipient instance tags.
+         (let-values (((type sender recipient)
+                       (get-unpack p "!uC LL"))
+                      ((our-tag) (otr-state-our-instance-tag state))
+                      ((their-tag) (otr-state-their-instance-tag state)))
+           (cond ((and (valid-sender-instance-tag? sender)
+                       (valid-recipient-instance-tag? recipient)
+                       (or (zero? their-tag)
+                           (eqv? sender their-tag))
+                       (or (zero? recipient)
+                           (eqv? recipient our-tag)))
+                  (when (zero? their-tag)
+                    ;; Learn the correspondent's instance tag.
+                    (otr-state-their-instance-tag-set! state sender))
+                  type)
+                 (else
+                  ;; This message is intended for a different session.
+                  (print "OTR message ignored.")
+                  'ignore)))))))
+
   (define (tlv-decode bv)
     ;; Decodes all tlvs in the bytevector
     (let ((p (open-bytevector-input-port bv)))
@@ -786,20 +887,21 @@
         (aes-ctr! Xbv 0 Xbv 0 (bytevector-length Xbv) (expand-aes-key r) 0)
         ;; Send the public D-H key X encrypted with the key r and the
         ;; hash of the unencrypted X.
-        (send (bytevector-append (pack "!SC" otr-version msg-diffie-hellman-commit)
+        (send (bytevector-append (message-header msg-diffie-hellman-commit)
                                  (pack "!L" (bytevector-length Xbv)) Xbv
                                  (pack "!L" (bytevector-length X-hash)) X-hash))
         (next-state auth-state-awaiting-dhkey Xbv X-hash x X r))))
 
   ;; "Bob" gets Alice's public D-H key.
   (define (auth-state-awaiting-dhkey p Xbv X-hash x X r)
-    (let ((type (get-u8 p)))
-      (cond ((= type msg-diffie-hellman-key)
+    (let ((type (get-message-type p)))
+      (cond ((eq? type 'ignore))
+            ((= type msg-diffie-hellman-key)
              (let ((Y (bytevector->uint (get-bytevector p (get-unpack p "!L")))))
                (unless (and (<= 2 Y (- n 2)) (not (= X Y)))
                  (error 'auth-state-awaiting-dhkey "Received bad Y" Y))
                (print "Here's Y: #x" (number->string Y 16))
-               (let-values (((ssid c c* m1 m2 m1* m2*) (make-keys Y x)))
+               (let-values (((ssid c c* m1 m2 m1* m2* extra) (make-keys Y x)))
                  (let* ((keyid-bob 1)
                         (X-bob (sign-public-key (otr-state-our-dsa-key (*state*))
                                                 m1 keyid-bob X Y)))
@@ -807,7 +909,7 @@
                    (aes-ctr! X-bob 0 X-bob 0 (bytevector-length X-bob) c 0)
                    (clear-aes-schedule! c)
                    (send (bytevector-append
-                          (pack "!SC" otr-version msg-reveal-signature)
+                          (message-header msg-reveal-signature)
                           (pack "!L" (bytevector-length r)) r
                           (pack "!L" (bytevector-length X-bob)) X-bob
                           (MAC m2
@@ -815,7 +917,7 @@
                                X-bob)))
                    (next-state auth-state-awaiting-signature
                                x X Y keyid-bob
-                               ssid c* m1* m2*)))))
+                               ssid c* m1* m2* extra)))))
             ((= type msg-diffie-hellman-commit)
              ;; Both sides started the AKE.
              ;; TODO: test this.
@@ -825,7 +927,7 @@
                (cond ((> our-mac their-mac)
                       ;; Resend our D-H Commit message and ignore theirs.
                       (send (bytevector-append
-                             (pack "!SC" otr-version msg-diffie-hellman-commit)
+                             (message-header msg-diffie-hellman-commit)
                              (pack "!L" (bytevector-length Xbv)) Xbv
                              (pack "!L" (bytevector-length X-hash)) X-hash))
                       (next-state auth-state-awaiting-dhkey Xbv X-hash x X r))
@@ -837,9 +939,10 @@
              (next-state auth-state-awaiting-dhkey Xbv X-hash x X r)))))
 
   ;; "Bob" gets Alice's public DSA key
-  (define (auth-state-awaiting-signature p x X Y keyid-bob ssid c* m1* m2*)
-    (let ((type (get-u8 p)))
-      (cond ((= type msg-signature)
+  (define (auth-state-awaiting-signature p x X Y keyid-bob ssid c* m1* m2* extra)
+    (let ((type (get-message-type p)))
+      (cond ((eq? type 'ignore))
+            ((= type msg-signature)
              (let ((X-alice (get-bytevector p (get-unpack p "!L")))
                    (mac (get-bytevector p 160/8)))
                (unless (bytevector=? mac (MAC m2* (pack "!L" (bytevector-length X-alice))
@@ -854,16 +957,17 @@
                  (unless (verify-public-key key-alice m1* keyid-alice Y X r s)
                    (error 'auth-state-awaiting-signature "Bad message signature"))
                  (clear-aes-schedule! c*)
-                 (set-established! (*state*) ssid keyid-bob x X keyid-alice Y key-alice)
+                 (set-established! (*state*) ssid keyid-bob x X keyid-alice Y key-alice extra)
                  (queue-data 'session-established 'from-here)
                  (next-state msg-state-encrypted))))
             (else
              (next-state auth-state-awaiting-signature
-                         x X Y keyid-bob ssid c* m1* m2*)))))
+                         x X Y keyid-bob ssid c* m1* m2* extra)))))
 
   (define (plaintext-state p)
-    (let ((type (get-u8 p)))
-      (cond ((= type msg-diffie-hellman-commit)
+    (let ((type (get-message-type p)))
+      (cond ((eq? type 'ignore))
+            ((= type msg-diffie-hellman-commit)
              (set-port-position! p 2)   ;before the type
              (auth-state-none p))
             (else
@@ -872,8 +976,9 @@
              (next-state plaintext-state)))))
 
   (define (auth-state-none p)
-    (let ((type (get-u8 p)))
-      (cond ((= type msg-diffie-hellman-commit)
+    (let ((type (get-message-type p)))
+      (cond ((eq? type 'ignore))
+            ((= type msg-diffie-hellman-commit)
              ;; X-encrypted is "Bob"'s g^x encrypted with a key he
              ;; reveals in the next message.
              (let* ((X-encrypted (get-bytevector p (get-unpack p "!L")))
@@ -881,8 +986,7 @@
                (let-values (((y Y) (make-dh-secret g n dh-length)))
                  (print (list 'our-dh-privkey (hex y)))
                  (print (list 'our-dh-pubkey (hex Y)))
-                 (send (bytevector-append (pack "!SC" otr-version
-                                                msg-diffie-hellman-key)
+                 (send (bytevector-append (message-header msg-diffie-hellman-key)
                                           (uint->mpi Y)))
                  (next-state auth-state-awaiting-reveal-sig
                              X-encrypted X-hash y Y))))
@@ -890,53 +994,56 @@
              (next-state auth-state-none)))))
 
   (define (auth-state-awaiting-reveal-sig p X-encrypted X-hash y Y)
-    (unless (eqv? msg-reveal-signature (get-u8 p))
-      (error 'auth-state-awaiting-reveal-sig "wrong message type"))
-    (let* ((rkey (get-bytevector p (get-unpack p "!L")))
-           (X-bob (get-bytevector p (get-unpack p "!L")))
-           (mac (get-bytevector p 160/8))
-           (X (make-bytevector (bytevector-length X-encrypted))))
-      ;; Decrypt "Bob"'s g^x
-      (aes-ctr! X-encrypted 0 X 0 (bytevector-length X) (expand-aes-key rkey) 0)
-      (unless (bytevector=? X-hash (sha-256->bytevector (sha-256 X)))
-        (error 'auth-state-awaiting-reveal-sig "Bad message M(X)"))
-      (let ((X (mpi->uint X)))
-        (unless (and (<= 2 X (- n 2)) (not (= X Y)))
-          (error 'auth-state-awaiting-reveal-sig "Bad message g^x"))
-        (print (list 'their-dh-pubkey (number->string X 16)))
-        (let-values (((ssid c c* m1 m2 m1* m2*) (make-keys X y)))
-          (unless (bytevector=? mac (MAC m2 (pack "!L" (bytevector-length X-bob))
-                                         X-bob))
-            (error 'auth-state-awaiting-reveal-sig "Bad message MAC"))
-          ;; Decrypt "Bob"'s public key
-          (aes-ctr! X-bob 0 X-bob 0 (bytevector-length X-bob) c 0)
-          (clear-aes-schedule! c)
-          (let* ((X-bob (open-bytevector-input-port X-bob))
-                 (key-bob (get-public-key X-bob))
-                 (keyid-bob (get-unpack X-bob "!L"))
-                 (keyid-alice 1)        ;ID for the D-H key
-                 (X-alice (sign-public-key (otr-state-our-dsa-key (*state*))
-                                           m1* keyid-alice Y X))
-                 (r (bytevector->uint (get-bytevector X-bob q-len)))
-                 (s (bytevector->uint (get-bytevector X-bob q-len))))
-            (unless (verify-public-key key-bob m1 keyid-bob X Y r s)
-              (error 'auth-state-awaiting-reveal-sig "Bad message signature"))
-            ;; Encrypt our public key
-            (aes-ctr! X-alice 0 X-alice 0 (bytevector-length X-alice) c* 0)
-            (clear-aes-schedule! c*)
-            (send (bytevector-append
-                   (pack "!SC" otr-version msg-signature)
-                   (pack "!L" (bytevector-length X-alice))
-                   X-alice
-                   (MAC m2* (pack "!L" (bytevector-length X-alice)) X-alice)))
-            (set-established! (*state*) ssid keyid-alice y Y keyid-bob X key-bob)
-            (queue-data 'session-established 'from-there)
-            (next-state msg-state-encrypted))))))
+    (let ((type (get-message-type p)))
+      (unless (eq? type 'ignore)
+        (unless (eqv? msg-reveal-signature type)
+          (error 'auth-state-awaiting-reveal-sig "wrong message type"))
+        (let* ((rkey (get-bytevector p (get-unpack p "!L")))
+               (X-bob (get-bytevector p (get-unpack p "!L")))
+               (mac (get-bytevector p 160/8))
+               (X (make-bytevector (bytevector-length X-encrypted))))
+          ;; Decrypt "Bob"'s g^x
+          (aes-ctr! X-encrypted 0 X 0 (bytevector-length X) (expand-aes-key rkey) 0)
+          (unless (bytevector=? X-hash (sha-256->bytevector (sha-256 X)))
+            (error 'auth-state-awaiting-reveal-sig "Bad message M(X)"))
+          (let ((X (mpi->uint X)))
+            (unless (and (<= 2 X (- n 2)) (not (= X Y)))
+              (error 'auth-state-awaiting-reveal-sig "Bad message g^x"))
+            (print (list 'their-dh-pubkey (number->string X 16)))
+            (let-values (((ssid c c* m1 m2 m1* m2* extra) (make-keys X y)))
+              (unless (bytevector=? mac (MAC m2 (pack "!L" (bytevector-length X-bob))
+                                             X-bob))
+                (error 'auth-state-awaiting-reveal-sig "Bad message MAC"))
+              ;; Decrypt "Bob"'s public key
+              (aes-ctr! X-bob 0 X-bob 0 (bytevector-length X-bob) c 0)
+              (clear-aes-schedule! c)
+              (let* ((X-bob (open-bytevector-input-port X-bob))
+                     (key-bob (get-public-key X-bob))
+                     (keyid-bob (get-unpack X-bob "!L"))
+                     (keyid-alice 1)    ;ID for the D-H key
+                     (X-alice (sign-public-key (otr-state-our-dsa-key (*state*))
+                                               m1* keyid-alice Y X))
+                     (r (bytevector->uint (get-bytevector X-bob q-len)))
+                     (s (bytevector->uint (get-bytevector X-bob q-len))))
+                (unless (verify-public-key key-bob m1 keyid-bob X Y r s)
+                  (error 'auth-state-awaiting-reveal-sig "Bad message signature"))
+                ;; Encrypt our public key
+                (aes-ctr! X-alice 0 X-alice 0 (bytevector-length X-alice) c* 0)
+                (clear-aes-schedule! c*)
+                (send (bytevector-append
+                       (message-header msg-signature)
+                       (pack "!L" (bytevector-length X-alice))
+                       X-alice
+                       (MAC m2* (pack "!L" (bytevector-length X-alice)) X-alice)))
+                (set-established! (*state*) ssid keyid-alice y Y keyid-bob X key-bob extra)
+                (queue-data 'session-established 'from-there)
+                (next-state msg-state-encrypted))))))))
 
   ;; "Bob"'s part of the data exchange phase
   (define (msg-state-encrypted p)
-    (let ((type (get-unpack p "C")))
-      (cond ((= type msg-data)
+    (let ((type (get-message-type p)))
+      (cond ((eq? type 'ignore))
+            ((= type msg-data)
              (let*-values (((flags skeyid rkeyid) (get-unpack p "!uCLL"))
                            ((next-key) (get-bytevector p (get-unpack p "!L")))
                            ((ctr) (get-unpack p "!Q"))
@@ -1017,7 +1124,12 @@
                                        (next-state plaintext-state)))
                                     (else
                                      (print "TLVs: " tlvs)
-                                     (for-each handle-smp (filter smp-tlv? tlvs))
+                                     (for-each (lambda (tlv)
+                                                 (cond ((smp-tlv? tlv)
+                                                        (handle-smp tlv))
+                                                       ((eqv? (car tlv) tlv-symmetric-key)
+                                                        (handle-symmetric-key tlv))))
+                                               tlvs)
                                      (next-state msg-state-encrypted)))))))
                        (else
                         (unless (bytevector=? msg #vu8())
@@ -1029,7 +1141,7 @@
 
   ;; Alice's part of the data exchange phase. Used to send an
   ;; encrypted message to the correspondent.
-  (define (otr-send-encrypted! state msg . tlvs)
+  (define (otr-send-encrypted!* state msg flags tlvs)
     (define (make-next-key! state)
       (let ((latest-id (caar (otr-state-our-keys state))))
         (when (= (otr-state-our-latest-acked state) latest-id)
@@ -1079,8 +1191,8 @@
           ;; (store-mackey! (*state*) mackey (car X) (car Y))
           (print "Sending with MAC key: " mackey)
           (let ((data (bytevector-append
-                       (pack "!SC" otr-version msg-data)
-                       (pack "!uCLL" 0 (car Y) (car X))
+                       (message-header msg-data)
+                       (pack "!uCLL" flags (car Y) (car X))
                        (uint->mpi (cdr next-Y))
                        (pack "!Q" ctr)
                        (pack "!L" (bytevector-length msg)) msg)))
@@ -1090,6 +1202,33 @@
                          (pack "!L" (apply + (map bytevector-length old-keys)))
                          old-keys)))))))
 
+  ;; Compatibility with the old otr-send-encrypted! that only accepted
+  ;; two (documented) arguments.
+  (define otr-send-encrypted!
+    (case-lambda
+      ((state msg)
+       (otr-send-encrypted!* state msg flag-none '()))
+      ((state msg flags)
+       (otr-send-encrypted!* state msg flags '()))
+      ((state msg flags . tlvs)
+       (otr-send-encrypted!* state msg flags tlvs))))
+
+  ;; Parse an incoming request to use the extra symmetric key.
+  (define (handle-symmetric-key tlv)
+    (let ((bv (cdr tlv)))
+      (when (>= (bytevector-length bv) 4)
+        (let ((protocol (unpack "!L" bv))
+              (data (subbytevector bv 4 (bytevector-length bv))))
+          (queue-data 'symmetric-key-request (cons protocol data))))))
+
+  ;; Send a request to use the extra symmetric key (new for OTRv3).
+  (define (otr-send-symmetric-key-request! state protocol data)
+    (otr-send-encrypted! state ""
+                         flag-ignore-unreadable
+                         (tlv-encode tlv-symmetric-key
+                                     (bytevector-append (pack "!L" protocol)
+                                                        data))))
+
   ;; Is this a message intended for OTR? Such messages should be given
   ;; to otr-update!.
   (define (otr-message? msg)
@@ -1097,34 +1236,93 @@
           ((string-contains msg whitespace-prefix) =>
            ;; Tagged plaintext
            (lambda (i)
-             ;; They offer OTRv2?
-             (string-contains msg v2-tag (+ i (string-length whitespace-prefix)))))
+             ;; Is OTR version 2 or 3 offered?
+             (let ((tag-idx (+ i (string-length whitespace-prefix))))
+               (or (string-contains msg v2-tag tag-idx)
+                   (string-contains msg v3-tag tag-idx)))))
           (else #f)))
+
+  ;; Find the byte identifiers used in a OTR query message.
+  (define (otr-parse-query msg)
+    (define (parse msg idx)
+      ;; idx points to after the #\v in ?OTR?v or ?OTRv
+      (let ((end (string-index msg #\? idx)))
+        (string->list (substring msg idx end))))
+    (cond ((string-contains msg "?OTR?v") =>
+           (lambda (idx)
+             ;; Version 1 and whatever follows
+             (cons #\? (parse msg (+ idx (string-length "?OTR?v"))))))
+          ((string-contains msg "?OTRv") =>
+           (lambda (idx)
+             ;; Not version 1.
+             (parse msg (+ idx (string-length "?OTRv")))))
+          ((string-contains msg "?OTR?")
+           ;; Only version 1.
+           '(#\?))
+          (else #f)))
+
+  ;; Place a fragment in the fragment buffer and empty the buffer a
+  ;; complete message has been received.
+  (define (handle-fragment state msg i version)
+    (define (valid-frag-id? k)
+      (and (integer? k) (exact? k) (<= 0 k 65535)))
+    (define (valid-tag? k)
+      (and (integer? k) (exact? k) (<= 0 k #xffffffff)))
+    (define (verify-instance-tags part)
+      (let ((tags (cdr (string-split part #\| 3))))
+        (and (= (length tags) 2)
+             (let ((sender (string->number (car tags) 16))
+                   (recipient (string->number (cadr tags) 16)))
+               ;; XXX: not supposed to check the sender?
+               (and (valid-tag? sender) (valid-tag? recipient)
+                    (or (zero? recipient)
+                        (= recipient (otr-state-our-instance-tag state))))))))
+    ;; TODO: follow the guidelines for receiving fragments
+    (let ((parts (string-split msg #\, 3 i (string-index-right msg #\,))))
+      (when (or (eqv? version otr-version-2)
+                (verify-instance-tags (car parts)))
+        (let ((k (string->number (cadr parts) 10))
+              (n (string->number (caddr parts) 10))
+              (piece (cadddr parts)))
+          (when (and (valid-frag-id? k) (valid-frag-id? n))
+            (otr-state-frags-set! state (cons piece (otr-state-frags state)))
+            (if (= k n)
+                (let ((msg (apply string-append (reverse (otr-state-frags state)))))
+                  (otr-state-frags-set! state '())
+                  (otr-update! state msg))))))))
 
   ;; Updates the OTR state with the given message. The caller
   ;; retrieves the result with otr-empty-queue!.
   (define (otr-update! state msg)
-    (cond ((string-contains msg "?OTR,") =>
-           ;; Fragmented message
+    (define (start version)
+      (otr-state-version-set! state version)
+      (otr-state-k-set! state start-ake)
+      (return state #f))
+    (cond ((string-contains msg "?OTR|") =>
+           ;; Fragmented OTRv3 message.
            (lambda (i)
-             (let ((parts (string-split msg #\, 3 i (string-index-right msg #\,))))
-               (let ((k (string->number (cadr parts) 10))
-                     (n (string->number (caddr parts) 10))
-                     (piece (cadddr parts)))
-                 ;; TODO: sanity checks.
-                 (otr-state-frags-set! state (cons piece (otr-state-frags state)))
-                 (if (= k n)
-                     (let ((msg (apply string-append (reverse (otr-state-frags state)))))
-                       (otr-state-frags-set! state '())
-                       (otr-update! state msg)))))))
+             (when (memv (otr-state-version state) (list #f otr-version-3))
+               (handle-fragment state msg i otr-version-3))))
+          ((string-contains msg "?OTR,") =>
+           ;; Fragmented OTRv2 message.
+           (lambda (i)
+             (when (memv (otr-state-version state) (list #f otr-version-2))
+               (handle-fragment state msg i otr-version-2))))
           ((string-contains msg "?OTR:") =>
            (lambda (i)
-             (let ((p (open-bytevector-input-port
-                       (base64-decode (substring msg (+ i (string-length "?OTR:"))
-                                                 (string-index-right msg #\.))))))
-               ;; TODO: what about bad versions? Send an error?
-               (cond ((= (get-unpack p "!S") otr-version)
-                      (return state p))))))
+             (let* ((p (open-bytevector-input-port
+                        (base64-decode (substring msg (+ i (string-length "?OTR:"))
+                                                  (string-index-right msg #\.)))))
+                    (version (get-unpack p "!S")))
+               (when (and (not (otr-state-version state))
+                          (or (eqv? version otr-version-2)
+                              (eqv? version otr-version-3)))
+                 ;; Learn the protocol version based on the first
+                 ;; binary message from the correspondent.
+                 (otr-state-version-set! state version))
+               ;; XXX: ignores bad versions
+               (when (eqv? version (otr-state-version state))
+                 (return state p)))))
           ((string-contains msg "?OTR Error:") =>
            (lambda (i)
              ;; TODO: initiate AKE depending on policy
@@ -1138,18 +1336,45 @@
            (lambda (i)
              (parameterize ((*state* state))
                (queue-data 'unencrypted (string-trim-right msg)))
-             (cond ((string-contains msg v2-tag (+ i (string-length whitespace-prefix)))
-                    ;; They offer OTRv2
-                    (otr-state-k-set! state start-ake)
-                    (return state #f))
-                   (else #f))))         ;offer not taken
-          ((or (string-contains msg "?OTR?")
-               (string-contains msg "?OTRv"))
-           ;; TODO: handle the other combinations of versions
-           (otr-state-k-set! state start-ake)
-           (return state #f))
+             (let ((idx (+ i (string-length whitespace-prefix))))
+               (cond ((and (string-contains msg v3-tag idx)
+                           (memv 3 (otr-state-acceptable-versions state)))
+                      ;; Prefer OTR version 3 if it is offered.
+                      (start otr-version-3))
+                     ((and (string-contains msg v2-tag idx)
+                           (memv 2 (otr-state-acceptable-versions state)))
+                      (start otr-version-2))))))
+          ((otr-parse-query msg) =>
+           (lambda (id*)
+             (cond ((and (memv v3-byte-id id*)
+                         (memv 3 (otr-state-acceptable-versions state)))
+                    (start otr-version-3))
+                   ((and (memv v2-byte-id id*)
+                         (memv 2 (otr-state-acceptable-versions state)))
+                    (start otr-version-2)))))
           (else
            ;; We might end up here if the corresponent used OTR
            ;; fragmentation, but did not send a whitespace tag.
            (parameterize ((*state* state))
-             (queue-data 'unencrypted msg))))))
+             (queue-data 'unencrypted msg)))))
+
+  ;; Construct an OTR query message or a whitespace tag.
+  (define (otr-tag whitespace? versions)
+    (let ((versions (if (eq? versions 'all)
+                        '(2 3)
+                        versions)))
+      (call-with-string-output-port
+        (lambda (p)
+          (cond (whitespace?
+                 (put-string p whitespace-prefix)
+                 (when (memv 2 versions)
+                   (put-string p v2-tag))
+                 (when (memv 3 versions)
+                   (put-string p v3-tag)))
+                (else
+                 (put-string p "?OTRv")
+                 (when (memv 2 versions)
+                   (put-char p v2-byte-id))
+                 (when (memv 3 versions)
+                   (put-char p v3-byte-id))
+                 (put-char p #\?))))))))
