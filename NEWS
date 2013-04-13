@@ -10,6 +10,11 @@ distinguish between different OTR sessions. This fixes a problem with
 chat networks that allow multiple logins. The new version also defines
 an extra symmetrical key that can be used by out-of-band protocols.
 
+** (weinholt text base64): Optimized decoder and new non-strict mode
+
+The Base 64 decoder has been optimized and is approximately six times
+faster. In addition it can optionally ignore non-alphabet characters.
+
 * Changes in version 1.4
 
 ** New license terms

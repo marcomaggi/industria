@@ -1,5 +1,5 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
-;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -101,8 +101,29 @@
                         (put p #\=)))))))
          (extract)))))
 
-  ;; Decodes a base64 string. The string must contain only pure
-  ;; unpadded base64 data.
+  ;; Create a lookup table for the alphabet and remember the latest table.
+  (define get-decode-table
+    (let ((ascii-table #f)
+          (extra-table '())     ;in the unlikely case of unicode chars
+          (table-alphabet #f))
+      (lambda (alphabet)
+        (unless (eq? alphabet table-alphabet)
+          ;; Rebuild the table.
+          (do ((ascii (make-vector 128 #f))
+               (extra '())
+               (i 0 (+ i 1)))
+              ((= i (string-length alphabet))
+               (set! ascii-table ascii)
+               (set! extra-table extra))
+            (let ((c (char->integer (string-ref alphabet i))))
+              (if (fx<=? c 127)
+                  (vector-set! ascii c i)
+                  (set! extra (cons (cons c i) extra)))))
+          (set! table-alphabet alphabet))
+        (values ascii-table extra-table))))
+
+  ;; Decodes a correctly padded base64 string, optionally ignoring
+  ;; non-alphabet characters.
   (define base64-decode
     (case-lambda
       ((str)
@@ -110,47 +131,95 @@
       ((str alphabet)
        (base64-decode str alphabet #f))
       ((str alphabet port)
-       (unless (zero? (mod (string-length str) 4))
-         (error 'base64-decode
-                "input string must be a multiple of four characters"))
+       (base64-decode str alphabet port #t))
+      ((str alphabet port strict?)
+       (define (pad? c) (eqv? c (char->integer #\=)))
        (let-values (((p extract) (if port
                                      (values port (lambda () (values)))
-                                     (open-bytevector-output-port))))
-         (do ((i 0 (+ i 4)))
-             ((= i (string-length str))
-              (extract))
-           (let ((c1 (string-ref str i))
-                 (c2 (string-ref str (+ i 1)))
-                 (c3 (string-ref str (+ i 2)))
-                 (c4 (string-ref str (+ i 3))))
-             ;; TODO: be more clever than string-index
-             (let ((i1 (string-index alphabet c1))
-                   (i2 (string-index alphabet c2))
-                   (i3 (string-index alphabet c3))
-                   (i4 (string-index alphabet c4)))
-               (cond ((and i1 i2 i3 i4)
-                      (let ((x (fxior (fxarithmetic-shift-left i1 18)
-                                      (fxarithmetic-shift-left i2 12)
-                                      (fxarithmetic-shift-left i3 6)
-                                      i4)))
-                        (put-u8 p (fxbit-field x 16 24))
-                        (put-u8 p (fxbit-field x 8 16))
-                        (put-u8 p (fxbit-field x 0 8))))
-                     ((and i1 i2 i3 (char=? c4 #\=)
-                           (= i (- (string-length str) 4)))
-                      (let ((x (fxior (fxarithmetic-shift-left i1 18)
-                                      (fxarithmetic-shift-left i2 12)
-                                      (fxarithmetic-shift-left i3 6))))
-                        (put-u8 p (fxbit-field x 16 24))
-                        (put-u8 p (fxbit-field x 8 16))))
-                     ((and i1 i2 (char=? c3 #\=) (char=? c4 #\=)
-                           (= i (- (string-length str) 4)))
-                      (let ((x (fxior (fxarithmetic-shift-left i1 18)
-                                      (fxarithmetic-shift-left i2 12))))
-                        (put-u8 p (fxbit-field x 16 24))))
-                     (else
-                      (error 'base64-decode "invalid input"
-                             (list c1 c2 c3 c4)))))))))))
+                                     (open-bytevector-output-port)))
+                    ((ascii extra) (get-decode-table alphabet)))
+         (define-syntax lookup
+           (syntax-rules ()
+             ((_ c) (or (and (fx<=? c 127) (vector-ref ascii c))
+                        (cond ((assv c extra) => cdr)
+                              (else #f))))))
+         (let* ((len (if strict?
+                         (string-length str)
+                         (let lp ((i (fx- (string-length str) 1)))
+                           ;; Skip trailing invalid chars.
+                           (cond ((fxzero? i) 0)
+                                 ((let ((c (char->integer (string-ref str i))))
+                                    (or (lookup c) (pad? c)))
+                                  (fx+ i 1))
+                                 (else (lp (fx- i 1))))))))
+           (let lp ((i 0))
+             (cond
+               ((fx=? i len)
+                (extract))
+               ((fx<=? i (fx- len 4))
+                (let lp* ((c1 (char->integer (string-ref str i)))
+                          (c2 (char->integer (string-ref str (fx+ i 1))))
+                          (c3 (char->integer (string-ref str (fx+ i 2))))
+                          (c4 (char->integer (string-ref str (fx+ i 3))))
+                          (i i))
+                  (let ((i1 (lookup c1)) (i2 (lookup c2))
+                        (i3 (lookup c3)) (i4 (lookup c4)))
+                    (cond
+                      ((and i1 i2 i3 i4)
+                       ;; All characters present and accounted for.
+                       ;; The most common case.
+                       (let ((x (fxior (fxarithmetic-shift-left i1 18)
+                                       (fxarithmetic-shift-left i2 12)
+                                       (fxarithmetic-shift-left i3 6)
+                                       i4)))
+                         (put-u8 p (fxbit-field x 16 24))
+                         (put-u8 p (fxbit-field x 8 16))
+                         (put-u8 p (fxbit-field x 0 8))
+                         (lp (fx+ i 4))))
+                      ((and i1 i2 i3 (pad? c4) (= i (- len 4)))
+                       ;; One padding character at the end of the input.
+                       (let ((x (fxior (fxarithmetic-shift-left i1 18)
+                                       (fxarithmetic-shift-left i2 12)
+                                       (fxarithmetic-shift-left i3 6))))
+                         (put-u8 p (fxbit-field x 16 24))
+                         (put-u8 p (fxbit-field x 8 16))
+                         (lp (fx+ i 4))))
+                      ((and i1 i2 (pad? c3) (pad? c4) (= i (- len 4)))
+                       ;; Two padding characters.
+                       (let ((x (fxior (fxarithmetic-shift-left i1 18)
+                                       (fxarithmetic-shift-left i2 12))))
+                         (put-u8 p (fxbit-field x 16 24))
+                         (lp (fx+ i 4))))
+                      ((not strict?)
+                       ;; Non-alphabet characters.
+                       (let lp ((i i) (c* '()) (n 4))
+                         (cond ((fxzero? n)
+                                ;; Found four valid characters.
+                                (lp* (cadddr c*) (caddr c*) (cadr c*) (car c*)
+                                     (fx- i 4)))
+                               ((fx=? i len)
+                                (error 'base64-decode
+                                       "Invalid input in non-strict mode."
+                                       i c*))
+                               (else
+                                ;; Gather alphabetic (or valid
+                                ;; padding) characters.
+                                (let ((c (char->integer (string-ref str i))))
+                                  (cond ((or (lookup c)
+                                             (and (pad? c)
+                                                  (fx<=? n 2)
+                                                  (fx=? i (fx- len n))))
+                                         (lp (fx+ i 1) (cons c c*) (fx- n 1)))
+                                        (else
+                                         (lp (fx+ i 1) c* n))))))))
+                      (else
+                       (error 'base64-decode
+                              "Invalid input in strict mode."
+                              c1 c2 c3 c4))))))
+               (else
+                (error 'base64-decode
+                       "The input is too short, it may be missing padding."
+                       i)))))))))
 
   (define (get-line-comp f port)
     (if (port-eof? port)
@@ -161,45 +230,49 @@
   ;; the given port. Returns two values: a string with the type and a
   ;; bytevector containing the base64 decoded data. The second value
   ;; is the eof object if there is an eof before the BEGIN delimiter.
-  (define (get-delimited-base64 port)
-    (define (get-first-data-line port)
-      ;; Some MIME data has header fields in the same format as mail
-      ;; or http. These are ignored.
-      (let ((line (get-line-comp string-trim-both port)))
-        (cond ((eof-object? line) line)
-              ((string-index line #\:)
-               (let lp ()               ;read until empty line
-                 (let ((line (get-line-comp string-trim-both port)))
-                   (if (string=? line "")
-                       (get-line-comp string-trim-both port)
-                       (lp)))))
-              (else line))))
-    (let ((line (get-line-comp string-trim-both port)))
-      (cond ((eof-object? line)
-             (values "" (eof-object)))
-            ((string=? line "")
-             (get-delimited-base64 port))
-            ((and (string-prefix? "-----BEGIN " line)
-                  (string-suffix? "-----" line))
-             (let* ((type (substring line 11 (- (string-length line) 5)))
-                    (endline (string-append "-----END " type "-----")))
-               (let-values (((outp extract) (open-bytevector-output-port)))
-                 (let lp ((line (get-first-data-line port)))
-                   (cond ((eof-object? line)
-                          (error 'get-delimited-base64
-                                 "unexpected end of file"))
-                         ((string-prefix? "-" line)
-                          (unless (string=? line endline)
-                            (error 'get-delimited-base64
-                                   "bad end delimiter" type line))
-                          (values type (extract)))
-                         (else
-                          (unless (and (= (string-length line) 5)
-                                       (string-prefix? "=" line)) ;Skip Radix-64 checksum
-                            (base64-decode line base64-alphabet outp))
-                          (lp (get-line-comp string-trim-both port))))))))
-            (else ;skip garbage (like in openssl x509 -in foo -text output).
-             (get-delimited-base64 port)))))
+  (define get-delimited-base64
+    (case-lambda
+      ((port)
+       (get-delimited-base64 port #t))
+      ((port strict)
+       (define (get-first-data-line port)
+         ;; Some MIME data has header fields in the same format as mail
+         ;; or http. These are ignored.
+         (let ((line (get-line-comp string-trim-both port)))
+           (cond ((eof-object? line) line)
+                 ((string-index line #\:)
+                  (let lp ()               ;read until empty line
+                    (let ((line (get-line-comp string-trim-both port)))
+                      (if (string=? line "")
+                          (get-line-comp string-trim-both port)
+                          (lp)))))
+                 (else line))))
+       (let ((line (get-line-comp string-trim-both port)))
+         (cond ((eof-object? line)
+                (values "" (eof-object)))
+               ((string=? line "")
+                (get-delimited-base64 port))
+               ((and (string-prefix? "-----BEGIN " line)
+                     (string-suffix? "-----" line))
+                (let* ((type (substring line 11 (- (string-length line) 5)))
+                       (endline (string-append "-----END " type "-----")))
+                  (let-values (((outp extract) (open-bytevector-output-port)))
+                    (let lp ((line (get-first-data-line port)))
+                      (cond ((eof-object? line)
+                             (error 'get-delimited-base64
+                                    "unexpected end of file"))
+                            ((string-prefix? "-" line)
+                             (unless (string=? line endline)
+                               (error 'get-delimited-base64
+                                      "bad end delimiter" type line))
+                             (values type (extract)))
+                            (else
+                             (unless (and (= (string-length line) 5)
+                                          (string-prefix? "=" line)) ;Skip Radix-64 checksum
+                               (base64-decode line base64-alphabet outp))
+                             (lp (get-line-comp string-trim-both port))))))))
+               (else ;skip garbage (like in openssl x509 -in foo -text output).
+                (get-delimited-base64 port)))))))
 
   (define put-delimited-base64
     (case-lambda
