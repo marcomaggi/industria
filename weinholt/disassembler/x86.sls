@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Disassembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -72,7 +72,7 @@
                  (cdr instr))))
 
   (define limiter (make-parameter #f))
-
+
 ;;; Simple byte decoding
   (define (ModR/M-mod byte)
     (fxbit-field byte 6 8))
@@ -205,7 +205,7 @@ no conflict with LES/LDS)."
   (define (needs-VEX prefixes)
     (unless (enum-set-member? (prefix vex) prefixes)
       (raise-UD "This instruction requires a VEX prefix")))
-
+
 ;;; Port input
   (define (really-get-bytevector-n port n collect tag)
     ((limiter) n collect tag)
@@ -287,7 +287,10 @@ no conflict with LES/LDS)."
 
   (define reg-names-x87 '#(st0 st1 st2 st3 st4 st5 st6 st7
                                st0 st1 st2 st3 st4 st5 st6 st7))
-
+
+  (define reg-names-bnd '#(bnd0 bnd1 bnd2 bnd3 #f #f #f #f
+                                #f #f #f #f #f #f #f #f))
+
 ;;; Special cases
   (define fix-pseudo-ops
     (let ((pseudos-table (make-eq-hashtable)))
@@ -369,31 +372,44 @@ operand is an opcode extension."
                          (string-append "repnz."
                                         (symbol->string (car instruction))))
                         (cdr instruction)))
+                 ((memq (car instruction) bnd-instructions)
+                  (cons (string->symbol
+                         (string-append "bnd."
+                                        (symbol->string (car instruction))))
+                        (cdr instruction)))
                  (else instruction)))
           (else instruction)))
 
   (define (fix-nop instruction prefixes mode operand-size)
     (define (nop)
       (if (enum-set-member? (prefix repz) prefixes) '(pause) '(nop)))
-    (if (eq? (car instruction) '*nop*)
-        (case mode
-          ((32 64)
-           (case operand-size
-             ((16) (if (enum-set-member? (prefix rex.b) prefixes)
-                       '(xchg r8w ax)
-                       '(xchg ax ax)))
-             ((32) (if (enum-set-member? (prefix rex.b) prefixes)
-                       '(xchg r8d eax)
-                       (nop)))
-             ((64) (if (enum-set-member? (prefix rex.b) prefixes)
-                       '(xchg r8 rax)
-                       '(xchg rax rax)))))
-          ((16)
-           (case operand-size
-             ((16) (nop))
-             ((32) '(xchg eax eax)))))
-        instruction))
-
+    (case (car instruction)
+      ((*nop*)
+       (case mode
+         ((32 64)
+          (case operand-size
+            ((16) (if (enum-set-member? (prefix rex.b) prefixes)
+                      '(xchg r8w ax)
+                      '(xchg ax ax)))
+            ((32) (if (enum-set-member? (prefix rex.b) prefixes)
+                      '(xchg r8d eax)
+                      (nop)))
+            ((64) (if (enum-set-member? (prefix rex.b) prefixes)
+                      '(xchg r8 rax)
+                      '(xchg rax rax)))))
+         ((16)
+          (case operand-size
+            ((16) (nop))
+            ((32) '(xchg eax eax))))))
+      ((bndmk bndldx bndstx)
+       ;; The reg-reg versions of these instructions are (nop Ev).
+       (if (and (symbol? (cadr instruction))
+                (symbol? (caddr instruction)))
+           '(nop)                       ;discard the operand
+           instruction))
+      (else
+       instruction)))
+
 ;;; Instruction stream decoding
   (define (get-displacement port mode collect prefixes modr/m address-size)
     "Reads a SIB and a memory offset, if present. Returns a memory
@@ -456,8 +472,16 @@ translate-displacement."
                                     reg-names-ymm
                                     reg-names-xmm))
                          ((x87) reg-names-x87)
+                         ((bnd)
+                          (when (fx>=? disp 4)
+                            (raise-UD "Invalid BND register encoded"))
+                          reg-names-bnd)
                          ((notreg)
                           (raise-UD "ModR/M encoded a register but memory is required"))
+                         ((generic)
+                          ;; This isn't really valid. It gets
+                          ;; corrected by fix-nop.
+                          reg-names32)
                          (else
                           (error 'translate-displacement
                                  "Unimplemented register operand size" operand-size)))
@@ -473,6 +497,10 @@ translate-displacement."
                               'mem256+
                               'mem128+))
                    ((128) 'mem128+)
+                   ((bnd)
+                    (case mode
+                      ((64) 'mem128+)
+                      (else 'mem64+)))
                    ((ptr16) 'mem16:16+)
                    ((ptr32) 'mem16:32+)
                    ((ptr64) 'mem16:64+)
@@ -554,6 +582,41 @@ translate-displacement."
         ((Ed/q)
          (translate-displacement prefixes mode disp
                                  (if (= operand-size 16) 32 operand-size)))
+        ((Edq/mode)
+         ;; Intel MPX (waiting for a proper opsyntax).
+         (let ((x (translate-displacement prefixes mode disp
+                                          (case mode
+                                            ((16) 32)
+                                            (else mode)))))
+           (when (and (eqv? address-size 16) (pair? x))
+             (raise-UD "16-bit addressing with MPX instruction"))
+           x))
+        ((Edq/mode/norel)
+         ;; Intel MPX (waiting for a proper opsyntax).
+         (let ((x (get-operand 'Edq/mode)))
+           (if (and (pair? x) (eq? (cadr x) 'rip))
+               (raise-UD "RIP-relative addressing")
+               x)))
+        ((Ebnd)
+         ;; Intel MPX (waiting for a proper opsyntax).
+         (let ((x (translate-displacement prefixes mode disp 'bnd)))
+           (when (and (eqv? address-size 16) (pair? x))
+             (raise-UD "16-bit addressing with MPX instruction"))
+           x))
+        ((Emib)
+         ;; Intel MPX (waiting for a proper opsyntax).
+         (let ((x (translate-displacement prefixes mode disp 'generic)))
+           (cond ((symbol? x) x)
+                 ((eqv? address-size 16)
+                  (raise-UD "16-bit addressing with MPX instruction"))
+                 ((eq? (cadr x) 'rip)
+                  (raise-UD "RIP-relative addressing"))
+                 (else
+                  (map (lambda (op)
+                         (if (and (pair? op) (eq? (car op) '*))
+                             `(* ,(cadr op) 1) ;scale is ignored
+                             op))
+                       x)))))
 
         ((Ib) (get-u8/collect port collect (tag immediate)))
         ((IbS)
@@ -664,6 +727,10 @@ translate-displacement."
         ((Dd/q) (vector-ref reg-names-dreg (ModR/M-reg modr/m prefixes)))
         ((Sw) (or (vector-ref reg-names-sreg (ModR/M-reg modr/m))
                   (raise-UD "Invalid segment register encoded")))
+        ((bnd)
+         ;; Intel MPX (waiting for a proper opsyntax).
+         (or (vector-ref reg-names-bnd (ModR/M-reg modr/m prefixes))
+             (raise-UD "Invalid BND register encoded")))
 
         ;; SSE. "Packed" is also "vector" in some documentation. It
         ;; means that the register is packed with more than one
@@ -842,6 +909,7 @@ translate-displacement."
            ((16) 'ax)
            ((32) 'eax)
            ((64) 'rax)))
+        ((*XMM0) 'xmm0)
         (else
          (error 'get-operand "Unimplemented opsyntax" op)))))
 

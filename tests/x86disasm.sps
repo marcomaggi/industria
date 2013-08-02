@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -695,6 +695,9 @@
 (test64 #vu8(#x0F #x8F #x00 #x00 #x00 #x00)
         '(jnle (+ rip 0)))
 
+(test64 #vu8(#x0f #x01 #xca) '(clac))
+(test64 #vu8(#x0f #x01 #xcb) '(stac))
+
 ;;; Test the special handling of NOP/PAUSE
 (test16 '#vu8(#x90
               #x66 #x90
@@ -722,9 +725,9 @@
         '(pause)
         '(xchg eax eax))
 
-(test64 '#vu8(#x90 
-              #x66 #x90 
-              #x48 #x90 
+(test64 '#vu8(#x90
+              #x66 #x90
+              #x48 #x90
               #xF3 #x90
               #x87 #xC0
               #x41 #x90
@@ -854,5 +857,68 @@
 
 (check (test/error 64 #vu8(#xC4 #xA1 #x7A #x11 #x84 #x23 #xAC #x05 #x00 #x00))
        => '(vmovss (mem64+ rbx #x5AC (* r12 #x1)) xmm0))
+
+;;; Intel MPX
+
+(check (test/error 64 #vu8(#x0f #x1a #x11))
+       => '(bndldx bnd2 (mem+ rcx)))
+
+(check (test/error 64 #vu8(#xf3 #x0f #x1a #x11))
+       => '(bndcl bnd2 (mem64+ rcx)))
+
+(check (test/error 64 #vu8(#x66 #x0f #x1a #x11))
+       => '(bndmov bnd2 (mem128+ rcx)))
+
+(check (test/error 64 #vu8(#xf2 #x0f #x1a #x11))
+       => '(bndcu bnd2 (mem64+ rcx)))
+
+(check (test/error 64 #vu8(#x0f #x1b #x19))
+       => '(bndstx (mem+ rcx) bnd3))
+
+(check (test/error 64 #vu8(#xf3 #x0f #x1b #x19))
+       => '(bndmk bnd3 (mem64+ rcx)))
+
+(check (test/error 64 #vu8(#x66 #x0f #x1b #x19))
+       => '(bndmov (mem128+ rcx) bnd3))
+
+(check (test/error 64 #vu8(#xf2 #x0f #x1b #x19))
+       => '(bndcn bnd3 (mem64+ rcx)))
+
+(check (test/error 64 #vu8(#xf3 #x0f #x1b #xd0))
+       => '(nop))
+
+(check (test/error 64 #vu8(#x0f #x1b #xd0))
+       => '(nop))
+
+(check (test/error 64 #vu8(#x0f #x1a #xd0))
+       => '(nop))
+
+(check (test/error 64 #vu8(#x48 #x0f #x1a
+                                #x05 #xF8 #xFF #xFF #xFF))
+       => "RIP-relative addressing")
+
+(check (test/error 64 #vu8(#xf3 #x48 #x0f #x1b
+                                #x05 #xF8 #xFF #xFF #xFF))
+       => "RIP-relative addressing")
+
+(check (test/error 64 #vu8(#x4a #x0f #x1a
+                                #x54 #xa3 #x42))
+       => '(bndldx bnd2 (mem+ rbx #x42 (* r12 1)))) ;scale=4 is ignored
+
+(check (test/error 32 #vu8(#xf3 #x0f #x1b #x19))
+       => '(bndmk bnd3 (mem32+ ecx)))
+
+(check (test/error 16 #vu8(#x67 #xf3 #x0f #x1b #x19))
+       => '(bndmk bnd3 (mem32+ ecx)))
+
+(check (test/error 16 #vu8(#x0f #x1a #x10))
+       => "16-bit addressing with MPX instruction")
+
+(test64 '#vu8(#xf2 #xc3
+                   #xf2 #xc2 #x02 #x00
+                   #xf2 #x75 #xFA)
+        '(bnd.ret)
+        '(bnd.ret 2)
+        '(bnd.jnz (+ rip #x-6)))
 
 (check-report)

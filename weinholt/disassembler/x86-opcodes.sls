@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Opcode table for the Intel 80x86 processor
-;; Copyright © 2008, 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -116,6 +116,7 @@
           branch-hint-instructions
           rep-instructions
           repz-instructions
+          bnd-instructions
           XOP-opcode-map-8 XOP-opcode-map-9 XOP-opcode-map-A)
   (import (rnrs))
 
@@ -139,6 +140,10 @@
 
   (define repz-instructions
     '(cmps scas))
+
+  (define bnd-instructions
+    '(call ret jmp jo jno jb jnb jz jnz jbe jnbe js
+           jns jp jnp jl jnl jle jnle))
 
   ;; (mnemonic immediate pseudo-op). This table contains a list of
   ;; pseudo-ops, where `mnemonic' is used in the opcode table,
@@ -424,7 +429,7 @@
                    (smsw Rv/Mw) #f (lmsw Ew) (invlpg Mb))
                  #(#(#f (vmcall) (vmlaunch) (vmresume) (vmxoff)
                         #f #f #f)
-                   #((monitor) (mwait) #f #f #f #f #f #f)
+                   #((monitor) (mwait) (clac) (stac) #f #f #f #f)
                    #((xgetbv) (xsetbv) #f #f #f #f #f #f)
                    #((vmrun) (vmmcall) (vmload) (vmsave)
                      (stgi) (clgi) (skinit) (invlpga))
@@ -500,8 +505,14 @@
                    (prefetchnta Mb) (prefetchnta Mb))
                  #(#f #f #f #f #f #f #f #f))
          (nop Ev)
-         (nop Ev)
-         (nop Ev)
+         #(Prefix (bndldx bnd Emib)
+                  (bndcl bnd Edq/mode)
+                  (bndmov bnd Ebnd)
+                  (bndcu bnd Edq/mode))
+         #(Prefix (bndstx Emib bnd)
+                  (bndmk bnd Edq/mode/norel)
+                  (bndmov Ebnd bnd)
+                  (bndcn bnd Edq/mode))
          (nop Ev)
          (nop Ev)
          (nop Ev)
@@ -844,7 +855,13 @@
            ;; 0F 38 C0
            #f #f #f #f #f #f #f #f
            ;; 0F 38 C8
-           #f #f #f #f #f #f #f #f
+           #(Prefix (sha1nexte Vdq Wdq) #f #f #f)
+           #(Prefix (sha1msg1 Vdq Wdq) #f #f #f)
+           #(Prefix (sha1msg2 Vdq Wdq) #f #f #f)
+           #(Prefix (sha256rnds2 Vdq Wdq *XMM0) #f #f #f)
+           #(Prefix (sha256msg1 Vdq Wdq) #f #f #f)
+           #(Prefix (sha256msg2 Vdq Wdq) #f #f #f)
+           #f #f
            ;; 0F 38 D0
            #f #f #f #f #f #f #f #f
            ;; 0F 38 D8
@@ -871,7 +888,8 @@
                    #(VEX #f (blsmsk By Ed/q))
                    #(VEX #f (blsi By Ed/q))
                    #f #f #f #f))
-           #f #f #f
+           #f #f
+           #(Prefix #f (adox Gd/q Ed/q) (adcx Gd/q Ed/q) #f)
            #(VEX #f (bextr Gd/q Ed/q By))
            ;; 0F 38 F8
            #f #f #f #f #f #f #f #f)
@@ -1019,7 +1037,9 @@
            ;; 0F 3A C0
            #f #f #f #f #f #f #f #f
            ;; 0F 3A C8
-           #f #f #f #f #f #f #f #f
+           #f #f #f #f
+           #(Prefix (sha1rnds4 Vdq Wdq Ib) #f #f #f)
+           #f #f #f
            ;; 0F 3A D0
            #f #f #f #f #f #f #f #f
            ;; 0F 3A D8
@@ -1421,7 +1441,7 @@
                       #f #f #f #f
                       #(Prefix (vmptrld Mq) (vmxon Mq) (vmclear Mq) #f)
                       (vmptrst Mq))
-                 #(#f #f #f #f #f #f #f #f))
+                 #(#f #f #f #f #f #f (rdrand Ev) (rdseed Ev)))
          ;; 0F C8
          (bswap *rAX/r8)
          (bswap *rCX/r9)
