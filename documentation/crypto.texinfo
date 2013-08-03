@@ -45,6 +45,7 @@ or the FDA and quite likely aren't allowed for government work.
 * crypto sha-1::          Secure Hash Algorithm 1 (SHA-1)
 * crypto sha-2::          Secure Hash Algorithm 2 (SHA-256, SHA-512, etc)
 * crypto ssh-public-key:: SSH public key format conversion
+* crypto uuid::           Universally Unique IDentifiers (UUID / GUID)
 * crypto x509::           X.509 Public-Key Infrastructure
 @end menu
 
@@ -893,7 +894,7 @@ library provides the record types @code{ecdsa-sha-2-public-key} and
 @code{ecdsa-sha-2-private-key} so that keys defined to work with SHA-2
 can be distinguished from other keys. Keys of this type are still
 usable for operations that expect the normal ECDSA key types.
-          
+
 @deffn Procedure make-ecdsa-sha-2-public-key elliptic-curve Q
 Performs the same function as @code{make-ecdsa-public-key}, but the
 returned key is marked to be used with SHA-2.
@@ -1630,6 +1631,178 @@ Version history:
 for ecdsa-sha2-* keys using the elliptic curves nistp256, nistp384,
 and nistp521.
 @end itemize
+
+@c ======================================================================
+@node crypto uuid
+@subsection Universally Unique IDentifiers (UUID / GUID)
+The @code{(weinholt crypto uuid)} library can be used to generate
+or analyze UUIDs.
+
+UUIDs are 128-bit identifiers standardized by RFC 4122 (though their
+use predates the RFC and they are sometimes refered to as GUIDs). No
+central registry is required to generate a UUID. An example UUID:
+@code{de7f5de9-bb0b-44ac-a018-e4651868d2ed}.
+@cindex UUID
+
+Although a UUID may look completely random at first sight, it does in
+fact have a structure. There is a @emph{variant} field that can be
+used to differentiate between different formats. For the RFC 4122
+variant there is also a version field that tells you how the UUID was
+generated.
+
+This library handles UUIDs as bytevectors and supports converting them
+to and from strings. Some systems handle UUIDs on a field-by-field
+basis (where the fields are separated by the minus signs in the string
+representation). No such conversion routines are provided. Some
+systems display UUIDs in Base 64 notation, see @ref{text base64}.
+
+@deffn Procedure time-uuid [node-address]
+Generates a time-based UUID. These UUIDs use the system clock together
+with a node address which is meant to be unique for each computer
+system.
+
+There are three options for the optional @emph{node-address} argument.
+If @emph{node-address} is a bytevector of length six then it is used
+for the @emph{node} field of the UUID. If @emph{node-address} is the
+symbol @code{generate} then a random bytevector is used (the multicast
+bit is always set). If @emph{node-address} is @code{#f} (the default)
+then this procedure may use one of the 48-bit IEEE addresses from the
+system. If it can't do that, then it generates a random address that
+persists across calls.
+
+Note that this procedure uses internal state to reduce the likelihood
+of duplicated UUIDs that are caused by a non-monotonous system clock.
+This is still not enough to guarantee non-duplicate UUIDs if multiple
+programs are generating UUIDs on the same system and at the same time.
+This procedure has a maximum throughput that depends on the resolution
+of the system time.
+
+You probably want to use @emph{random-uuid} instead, unless you are
+working with a namespace.
+@end deffn
+
+@deffn Procedure md5-uuid namespace name
+This deterministically generates a UUID based on a name in a
+namespace. It is based on the MD5 cryptographic hash function.
+
+The argument @var{name} can be either a bytevector or a string. If it
+is a string it is converted to its UTF-8 representation.
+
+The @var{namespace} is given as a UUID, of which several are
+pre-defined below.
+@end deffn
+
+@deffn Procedure sha-1-uuid namespace name
+This deterministically generates a UUID based on a name in a
+namespace. It is based on the SHA-1 cryptographic hash function.
+
+The argument @var{name} can be either a bytevector or a string. If it
+is a string it is converted to its UTF-8 representation.
+
+The @var{namespace} is given as a UUID, of which several are
+pre-defined below.
+
+@example
+(import (weinholt crypto uuid))
+(uuid->string (md5-uuid uuid-namespace-dns "www.example.com"))
+@result{} "5df41881-3aed-3515-88a7-2f4a814cf09e"
+@end example
+@end deffn
+
+@deffn Procedure random-uuid
+This generates a pseudo-random UUID, which has a high probability of
+being unique. All the bits are random except for the ones that
+identify it as a random UUID.
+@end deffn
+
+@deffn Procedure uuid->string uuid
+Converts the @emph{uuid} to its string representation. The hexadecimal
+digits will always be lower case, independent of the system's
+@code{number->string} procedure.
+
+It raises an assertion violation if @emph{uuid} is not a valid UUID
+(but no fields in the UUID are checked).
+@end deffn
+
+@deffn Procedure string->uuid string
+Converts a string representation of a UUID into a bytevector.
+Non-hexadecimal digits are ignored.
+
+It raises an assertion violation if @emph{string} does not contain a
+valid UUID (but no fields in the UUID are checked).
+@end deffn
+
+@deffn Procedure uuid-info uuid
+Extracts information from @emph{uuid}. This can be used to analyze the
+contents of a UUID. It returns an alist with various pieces of
+information, e.g.@: the variant and the UUID version.
+
+What information is returned depends on the variant and version of the
+UUID. The fields that are present in the current implementation are
+guaranteed to be present in future implementations, though the order
+may change and new fields or values may be added.
+
+@itemize
+@item
+@code{variant} -- This identifies the variant of the UUID. It is one
+of these symbols: @code{nil}, @code{ncs}, @code{rfc4122},
+@code{microsoft-com}, @code{reserved} or @code{unknown}.
+@item
+@code{version} -- Identifies the version number of an RFC 4122 UUID.
+@item
+@code{version-name} -- Symbolically identifies the version number of
+an RFC 4122 UUID. It is one of these symbols: @code{time},
+@code{dce-security}, @code{md5}, @code{random}, or @code{sha-1}.
+@item
+@code{reserved-field} -- This should always be @code{2} for a
+correctly generated UUID.
+@item
+@code{time} -- This is a SRFI-19 time-utc object that contains the
+time at which the UUID was generated.
+@item
+@code{clock-sequence} -- This is a number which changes when the UUID
+generator detects that the system time may be repeating. It can also
+be randomly generated.
+@item
+@code{node} -- This is the node address (MAC address) of the system
+that generated the UUID.
+@item
+@code{node-random?} -- If this field is true then the node address was
+randomly generated.
+@end itemize
+
+@example
+(import (weinholt crypto uuid))
+(uuid-info (time-uuid))
+@result{}
+ ((variant . rfc4122)
+  (version . 1)
+  (reserved-field . 2)
+  (version-name . time)
+  (time . #[time time-utc 2099510 1375538665])
+  (clock-sequence . 12133)
+  (node . #vu8(119 28 30 179 114 29))
+  (node-random? . #t))
+@end example
+@end deffn
+
+@deffn Variable nil-uuid
+This variable is bound to the special @emph{nil} UUID, which is all
+zeroes.
+@end deffn
+
+@deffn Variable uuid-namespace-dns
+@end deffn
+@deffn Variable uuid-namespace-url
+@end deffn
+@deffn Variable uuid-namespace-oid
+@end deffn
+@deffn Variable uuid-namespace-x.500
+These variables are bound to the standard UUIDs of namespaces that are
+used with the @code{md5-uuid} and @code{sha-1-uuid} procedures. They
+are used when the name belongs to a DNS hostname, a URL, an ISO Object
+ID, or an X.500 Distinguished Name.
+@end deffn
 
 @c ======================================================================
 @node crypto x509
