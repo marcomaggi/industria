@@ -3,7 +3,7 @@
 AM_MAKEINFOFLAGS	= --no-split
 
 info_TEXINFOS		= industria.texinfo
-nausicaa_oopp_TEXINFOS	= \
+industria_TEXINFOS	= \
 	binfmt.texinfo					\
 	compression.texinfo				\
 	crypto.texinfo					\
