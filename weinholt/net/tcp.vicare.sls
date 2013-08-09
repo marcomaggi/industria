@@ -1,5 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Copyright © 2010 Göran Weinholt <goran@weinholt.se>
+;; Modified by Marco Maggi <marco.maggi-ipsu@poste.it>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -22,4 +23,11 @@
 
 (library (weinholt net tcp)
   (export tcp-connect)
-  (import (only (ikarus) tcp-connect)))
+  (import (rnrs)
+    (prefix (only (vicare posix)
+		  tcp-connect)
+	    px.))
+  (define (tcp-connect . args)
+    (let ((port (apply px.tcp-connect args)))
+      (values port port))))
+
