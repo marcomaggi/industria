@@ -38,13 +38,11 @@ nobase_dist_libvicare_DATA = \
 	weinholt/compression/lzma.sls				\
 	weinholt/compression/sliding-buffer.sls			\
 	weinholt/compression/xz.sls				\
-	weinholt/compression/zip				\
 	weinholt/compression/zip/extra.ikarus.sls		\
 	weinholt/compression/zip/extra.sls			\
 	weinholt/compression/zip/extra.ypsilon.sls		\
 	weinholt/compression/zip.sls				\
 	weinholt/compression/zlib.sls				\
-	weinholt/crypto/aes					\
 	weinholt/crypto/aes/private.sls				\
 	weinholt/crypto/aes.sls					\
 	weinholt/crypto/arcfour.sls				\
@@ -53,7 +51,6 @@ nobase_dist_libvicare_DATA = \
 	weinholt/crypto/des.sls					\
 	weinholt/crypto/dh.sls					\
 	weinholt/crypto/dsa.sls					\
-	weinholt/crypto/ec					\
 	weinholt/crypto/ec/dsa.sls				\
 	weinholt/crypto/ec.sls					\
 	weinholt/crypto/entropy.sls				\
