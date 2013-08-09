@@ -31,7 +31,7 @@ VICARE_TEST_ENV		= \
 	CHECK_TEST_NAME=$(name); export CHECK_TEST_NAME;
 VICARE_TEST_RUN		= $(VICARE_TEST_ENV) $(VICARE_TIME_TESTS) $(GDB) $(VICARE) $(VICARE_TEST_FLAGS)
 
-VICARE_SELECTED_TESTS	= $(testdir)/test-*$(file)*.sps
+VICARE_SELECTED_TESTS	= $(testdir)/*$(file)*.sps
 VICARE_SELECTED_DEMOS	= $(testdir)/demo-*$(file)*.sps
 
 .PHONY: test tests demo demos
@@ -126,6 +126,8 @@ TESTS			= \
 	x86asm.sps					\
 	x86disasm.sps					\
 	zlib.sps
+
+XFAIL_TESTS	= x86asm.sps
 
 #page
 #### interface to "make installcheck"

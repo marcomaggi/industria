@@ -6,6 +6,13 @@ SUBDIRS			= documentation tests
 EXTRA_DIST		= INSTALL configure.sh
 dist_doc_DATA		= README NEWS LICENSE.txt
 
+vicare_test_RULES	= test tests demo demos
+
+.PHONY: $(vicare_test_RULES)
+
+$(vicare_test_RULES):
+	cd tests ; $(MAKE) $(@)
+
 ## --------------------------------------------------------------------
 
 libvicaredir	= $(libdir)/vicare-scheme
