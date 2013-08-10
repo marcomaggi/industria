@@ -127,7 +127,7 @@ TESTS			= \
 	x86disasm.sps					\
 	zlib.sps
 
-XFAIL_TESTS	= x86asm.sps otr.sps
+XFAIL_TESTS	= x86asm.sps
 
 #page
 #### interface to "make installcheck"

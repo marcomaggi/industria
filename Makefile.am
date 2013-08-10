@@ -1,5 +1,11 @@
 ## Process this file with automake to produce Makefile.in
 
+# This VFLAGS  setting is  to go  around an  error in  Vicare Scheme's
+# optimizer.   It can  be removed  once such  error is  fixed.  (Marco
+# Maggi; Sat Aug 10, 2013)
+#
+AM_DISTCHECK_CONFIGURE_FLAGS	= VFLAGS=-O0
+
 ACLOCAL_AMFLAGS		= -I autotools
 AUTOMAKE_OPTIONS	= foreign
 SUBDIRS			= documentation tests

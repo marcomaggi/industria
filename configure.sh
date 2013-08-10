@@ -10,6 +10,7 @@ prefix=/usr/local
     --cache-file=../config.cache                \
     --prefix="$prefix"                          \
     --enable-time-tests                         \
+    VFLAGS=-O0					\
     "$@"
 
 ### end of file
