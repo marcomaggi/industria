@@ -120,7 +120,7 @@ original site:
 	  <https://github.com/weinholt/industria>
 
 while issues  regarding repackaging  with the  GNU Autotools
-and support for Vicare Scheme mustbe reported to:
+and support for Vicare Scheme must be reported to:
 
 	 <https://github.com/marcomaggi/industria>
 
@@ -128,11 +128,13 @@ and support for Vicare Scheme mustbe reported to:
 C. Resources
 ------------
 
-The latest version of Auto Industria can be found here:
+The latest  version of  Industria for  Vicare Scheme  can be
+found here:
 
 	 <http://github.com/marcomaggi/industria/>
 
-  The original Industria can be found here:
+in the  "vicare-scheme" branch.  The original  Industria can
+be found here:
 
 	      <https://weinholt.se/industria/>
 	  <https://github.com/weinholt/industria>
