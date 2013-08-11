@@ -23,8 +23,8 @@ This  package  is just  a  repackaging  of Göran  Weinholt's
 Industria with GNU Autotools  for package infrastructure and
 verified support for Vicare Scheme.
 
-  *NOTE* The  maintainer of Industria supports  only the GNU
-infrastructure and tests only on a GNU+Linux system.
+  *NOTE* The  maintainer of  this repackaging  supports only
+the GNU infrastructure and tests only on a GNU+Linux system.
 
 
 2. License
