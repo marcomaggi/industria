@@ -35,17 +35,13 @@ in the "vicare-scheme" branch, and as backup at:
 		    <https://weinholt.se/industria/>
 		<https://github.com/weinholt/industria>
 
-  The last  time the  author bothered to  update this paragraph,  he had
-tested Template version 1.2.3; the Template library is available at:
-
-		   <http://template.sourceforge.net/>
-
 
 Notes for revision 1.5a0
 ------------------------
 
 * Notice  that this  package  is  affected by  Vicare's  issue #49;  the
-  temporary workaround is to configure turning off the optimizer:
+  temporary workaround  is to  turn off  the optimizer  at configuration
+  time:
 
     $ ./configure VFLAGS=-O0
 
