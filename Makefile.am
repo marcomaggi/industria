@@ -10,7 +10,8 @@ ACLOCAL_AMFLAGS		= -I autotools
 AUTOMAKE_OPTIONS	= foreign
 SUBDIRS			= documentation tests
 EXTRA_DIST		= INSTALL configure.sh
-dist_doc_DATA		= README NEWS LICENSE.txt
+dist_doc_DATA		= README README.vicare-scheme \
+			  NEWS LICENSE.txt ANNOUNCE.vicare-scheme
 
 vicare_test_RULES	= test tests demo demos
 
