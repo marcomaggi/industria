@@ -1,4 +1,4 @@
-﻿Subject: [announce] Industria for Vicare revision 1.5a0
+Subject: [announce] Industria for Vicare revision 1.5a1
 
 			  Industria for Vicare
 			  ====================
@@ -10,7 +10,7 @@ decompression,   disassemblers   for  various   machine   architectures,
 Off-The-Record messaging, bytevector pack/unpack syntax, TLS connections
 via custom binary ports, Secure Shell, and a few more things.
 
-  "Industria  for Vicare"  is  just a  repackaging  of Göran  Weinholt's
+  "Industria  for Vicare"  is  just a  repackaging  of G�ran  Weinholt's
 Industria  with GNU  Autotools for  package infrastructure  and verified
 support for Vicare Scheme.
 
@@ -34,6 +34,12 @@ in the "vicare-scheme" branch, and as backup at:
 
 		    <https://weinholt.se/industria/>
 		<https://github.com/weinholt/industria>
+
+
+Notes for revision 1.5a1
+------------------------
+
+*
 
 
 Notes for revision 1.5a0
