@@ -2,7 +2,7 @@ dnl @configure_input@
 dnl
 
 AC_PREREQ([2.69])
-AC_INIT([Industria],[1.5],[marco.maggi-ipsu@poste.it],
+AC_INIT([Industria],[1.5a0],[marco.maggi-ipsu@poste.it],
   [industria],[https://github.com/marcomaggi/industria])
 AC_CONFIG_SRCDIR([weinholt])
 AC_CONFIG_MACRO_DIR([autotools])
