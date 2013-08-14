@@ -25,9 +25,9 @@
   (export tcp-connect)
   (import (rnrs)
     (prefix (only (vicare posix)
-		  tcp-connect)
+		  tcp-connect/binary)
 	    px.))
   (define (tcp-connect . args)
-    (let ((port (apply px.tcp-connect args)))
+    (let ((port (apply px.tcp-connect/binary args)))
       (values port port))))
 

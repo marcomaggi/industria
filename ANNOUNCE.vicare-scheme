@@ -1,4 +1,4 @@
-Subject: [announce] Industria for Vicare revision 1.5a1
+﻿Subject: [announce] Industria for Vicare revision 1.5a1
 
 			  Industria for Vicare
 			  ====================
@@ -39,7 +39,7 @@ in the "vicare-scheme" branch, and as backup at:
 Notes for revision 1.5a1
 ------------------------
 
-*
+* Fixed library (weinholt net tcp) to use TCP-CONNECT/BINARY.
 
 
 Notes for revision 1.5a0
