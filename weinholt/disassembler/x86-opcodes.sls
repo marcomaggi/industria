@@ -1633,7 +1633,7 @@
        #(d64 (push Iz))
        (imul Gv Ev Iz)
        #(d64 (push IbS))
-       (imul Gv Ev Ib)
+       (imul Gv Ev IbS)
        (ins Yb *DX)
        (ins Yz *DX)
        (outs *DX Xb)
