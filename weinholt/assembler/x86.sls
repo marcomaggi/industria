@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Assembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011, 2012, 2014 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -530,7 +530,7 @@
      ;; Ignore future extensions to the opcode table.
      ((symbol? (vector-ref instr 0))
       #f)
-     
+
      (else
       (do ((index 0 (+ index 1)))
           ((= index 256))
@@ -732,32 +732,31 @@
                    (define (use-prefix name)
                      (find-instruction-encoding (cons (cadr mnemonics) operands)
                                                 mode (cons name prefixes)))
-                   (unless (= (length mnemonics) 2) (bailout "There are too many dots in the mnemonic"))
-                   (cond ((eq? (car mnemonics) 'lock)
-                          (unless (memq (cadr mnemonics) lock-instructions)
-                            (bailout "This instruction does not support the LOCK prefix"))
-                          (unless (and (not (null? operands))
-                                       ;; FIXME: a little ugly...
-                                       ;; operands should probably be
-                                       ;; translated in one initial
-                                       ;; pass.
-                                       (or (list? (car operands))
-                                           (memory? (car operands))))
-                            (bailout "The LOCK prefix requires a memory destination operand"))
-                          (use-prefix (prefix-byte lock)))
-                         ((eq? (car mnemonics) 'rep)
-                          (unless (memq (cadr mnemonics) rep-instructions)
-                            (bailout "This instruction does not support the REP prefix"))
-                          (use-prefix (prefix-byte rep)))
-                         ((memq (car mnemonics) '(repz repe))
-                          (unless (memq (cadr mnemonics) repz-instructions)
-                            (bailout "This instruction does not support the REPZ prefix"))
-                          (use-prefix (prefix-byte repz)))
-                         ((memq (car mnemonics) '(repnz repne))
-                          (unless (memq (cadr mnemonics) repz-instructions)
-                            (bailout "This instruction does not support the REPNZ prefix"))
-                          (use-prefix (prefix-byte repnz)))
-                         (else (bailout))))))
+                   (case (car mnemonics)
+                     ((lock)
+                      (unless (memq (cadr mnemonics) lock-instructions)
+                        (bailout "This instruction does not support the LOCK prefix"))
+                      (unless (and (not (null? operands))
+                                   ;; FIXME: a little ugly... operands
+                                   ;; should probably be translated in
+                                   ;; one initial pass.
+                                   (or (list? (car operands))
+                                       (memory? (car operands))))
+                        (bailout "The LOCK prefix requires a memory destination operand"))
+                      (use-prefix (prefix-byte lock)))
+                     ((rep)
+                      (unless (memq (cadr mnemonics) rep-instructions)
+                        (bailout "This instruction does not support the REP prefix"))
+                      (use-prefix (prefix-byte rep)))
+                     ((repz repe)
+                      (unless (memq (cadr mnemonics) repz-instructions)
+                        (bailout "This instruction does not support the REPZ prefix"))
+                      (use-prefix (prefix-byte repz)))
+                     ((repnz repne)
+                      (unless (memq (cadr mnemonics) repz-instructions)
+                        (bailout "This instruction does not support the REPNZ prefix"))
+                      (use-prefix (prefix-byte repnz)))
+                     (else (bailout "Unknown prefix"))))))
               (unknown-mnemonic? (bailout "Unknown mnemonic"))
               (else (bailout "Wrong number of operands"))))
       (define (try-pseudo unknown-mnemonic?)
