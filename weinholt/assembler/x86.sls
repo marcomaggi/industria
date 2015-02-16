@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Assembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010, 2011, 2012, 2014 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2011, 2012, 2014, 2015 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -69,6 +69,15 @@
             (weinholt disassembler x86-opcodes))
 
   (define-syntax print
+    (syntax-rules ()
+      #;
+      ((_ . args)
+       (begin
+         (for-each display (list . args))
+         (newline)))
+      ((_ . args) (begin 'dummy))))
+
+  (define-syntax trace
     (syntax-rules ()
       #;
       ((_ . args)
@@ -631,7 +640,7 @@
                                      ((imm16) 2)
                                      ((#f) 0)
                                      (else
-                                      (print "ELSE: " y)
+                                      (trace "ELSE: " y)
                                       0))))))
                      0 a))
         ;; (print "-- " (vector-ref x 0) " -> " (rough-count-operands (vector-ref x 0))
@@ -799,7 +808,7 @@
                        ;; operands that are acceptable as input, one
                        ;; of each type. These can also be used in
                        ;; documentation. And lookup is O(1).
-                       (print "% " operands)
+                       (trace "% " operands)
                        (let lp ((templates templates))
                          (if (null? templates)
                              (error 'find-instruction-encoding
@@ -810,7 +819,7 @@
                                     (eas (encoding-address-size (template-encoding template)))
                                     (os (instruction-operand-size eos operands (template-opsyntax template)))
                                     (as (instruction-address-size eas operands)))
-                               (print "- " (template-opsyntax template)
+                               (trace "- " (template-opsyntax template)
                                       " - " (template-encoding template))
                                (if (and (encoding-mode-is-acceptable?
                                          mode (template-encoding template))
@@ -899,7 +908,7 @@
              (let ((value (eval-expression operand (assembler-state-labels state))))
                (unless value
                  (print "#;not-evaluated " operand)
-                 (assembler-state-relocs-set! state #t))
+                 (assembler-state-relocs-set! state operand))
                (case (opsyntax-encoding-position opsyntax)
                  ((imm) (number->bytevector (or value 0) os))
                  ((imm8) (number->bytevector (or value 0) 8))
@@ -917,7 +926,7 @@
                     ((16)
                      (vector (or value 0) 16))))
                  ((destB)
-                  (print "DESTB!!")
+                  (trace "DESTB!!")
                   (vector (or value 0) 8))
                  ((#f) #f)
                  (else
@@ -927,7 +936,7 @@
              (let ((offset (eval-expression (far-pointer-offset operand)
                                             (assembler-state-labels state))))
                (unless offset
-                 (print "#;not-evaluated-far-pointer " operand))
+                 (trace "#;not-evaluated-far-pointer " operand))
                (case (assembler-state-mode state)
                  ((32 64)
                   ;; FIXME: verify that they look like this in 64-bit mode
@@ -959,7 +968,7 @@
         ;; dos: Default Operand Size (what the CPU uses without a prefix)
         ;; os: Operand Size (according to the given operands)
         ;; eos: Effective Operand Size (what the CPU will use)
-        (print "\n#;encoding " (car instr)
+        (trace "\n#;encoding " (car instr)
                " #;operands " (cdr instr)
                " #;operand-size " (list dos eos os)
                " #;address-size " (list mode as)
@@ -1017,7 +1026,7 @@
                                              (assembler-state-port state))
                                             pos)
                                          imms)))
-                   (print "#;immediates " imms " #;size " size)
+                   (trace "#;immediates " imms " #;size " size)
 
                    (for-each
                     (lambda (y)
@@ -1035,7 +1044,7 @@
 
                 ((memory? (car operands))
                  (let ((o (car operands)))
-                   (print "memory operand: " (car operands) " :: " (car opsyntax))
+                   (trace "memory operand: " (car operands) " :: " (car opsyntax))
                    ;; Emit segment override
                    (when (memory-segment o)
                      (let ((seg (register-index (memory-segment o))))
@@ -1046,7 +1055,7 @@
                                                        (assembler-state-labels state))))
                             (unless disp
                               (print "#;not-evaluated-memory " (memory-expr o))
-                              (assembler-state-relocs-set! state #t))
+                              (assembler-state-relocs-set! state (memory-expr o)))
                             (let-values (((disp SIB ModR/M* REX*)
                                           (encode-memory (memory-addressing-mode o)
                                                          (or disp #x100) ;bigger than disp8
@@ -1065,7 +1074,7 @@
                               REX ModR/M SIB disp)))))
 
                 ((register? (car operands))
-                 (print "register operand: " (car operands) " :: " (car opsyntax))
+                 (trace "register operand: " (car operands) " :: " (car opsyntax))
                  (let* ((index (register-index (car operands)))
                         (type (register-type (car operands)))
                         (REX (if (eq? type 'rex8) (fxior REX REX.bare) REX)))
@@ -1115,7 +1124,7 @@
              (let ((value (eval-expression imm (assembler-state-labels state))))
                (unless value
                  (print "#;unknown-label " imm)
-                 (assembler-state-relocs-set! state #t))
+                 (assembler-state-relocs-set! state imm))
                (put-bytevector (assembler-state-port state)
                                (number->bytevector (or value 0) size))))
             (else
@@ -1179,14 +1188,14 @@
                     (bvs '()))
              (if (zero? n) (reverse bvs)
                  (let ((pad (min (- (vector-length table) 1) n)))
-                   (print "#;pad " pad)
+                   (trace "#;pad " pad)
                    (lp (- n pad)
                        (cons (vector-ref table pad) bvs))))))))
 
 
 
   (define (assemble! instr state)
-    (print "! " instr)
+    (trace "! " instr)
     (case (car instr)
       ((%label)
        (hashtable-set! (assembler-state-labels state)
@@ -1361,7 +1370,7 @@
                       section (cons (car code) ret))))
                ((%section)
                 (lp (cdr code) mode symbols (cadar code) (cons (car code) ret)))
-               ((%section %align %utf8z %vu8 %origin)
+               ((%align %utf8z %vu8 %origin)
                 (lp (cdr code) mode symbols section (cons (car code) ret)))
                ((%mode)
                 ;; New mode
@@ -1403,26 +1412,31 @@
                             ret)))))))))
 
   (define (assemble code)
+    ;; (for-each (lambda (x) (write x) (newline)) code) (newline)
     (let-values (((code symbols) (translate-operands-code code)))
-      (let lp ((labels '#())
+      (let lp ((pass 0)
+               (old-labels (make-eq-hashtable))
                (state (make-assembler-state 16 #f 0
                                             (make-eq-hashtable)
                                             #f '() symbols)))
+        (display (list 'assembly 'pass: pass)) (newline)
         (let-values (((tmpport extract) (open-bytevector-output-port)))
           (assembler-state-port-set! state tmpport)
           (for-each (lambda (i) (assemble! i state)) code)
-          (let*-values (((keys vals) (hashtable-entries (assembler-state-labels state)))
-                        ((newlabels) (vector-sort
-                                      (lambda (x y) (< (cdr x) (cdr y)))
-                                      (vector-map cons keys vals))))
+          (let ((new-labels (assembler-state-labels state)))
             ;; Loop until all labels are known and they aren't
             ;; changing anymore.
             (cond ((or (assembler-state-relocs state)
-                       (not (equal? labels newlabels)))
+                       (exists (lambda (key)
+                                 (let ((nl (hashtable-ref new-labels key #f))
+                                       (ol (hashtable-ref old-labels key #f)))
+                                   (not (equal? nl ol))))
+                               (vector->list (hashtable-keys new-labels)))
+
+                       )
                    (print ";Some labels are unknown or changed! Assembling again...")
-                   (print labels)
-                   (print newlabels)
-                   (lp newlabels
+                   (print ";Unknown labels? " (assembler-state-relocs state))
+                   (lp (+ pass 1) (hashtable-copy new-labels 'immutable)
                        (make-assembler-state 16 #f 0
                                              (assembler-state-labels state)
                                              #f '() symbols)))
