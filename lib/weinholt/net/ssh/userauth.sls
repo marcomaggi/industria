@@ -150,7 +150,8 @@
        (case-lambda
          ((username service key)
           ((p username service "publickey")
-           (ssh-public-key-algorithm 'make-userauth-request/public-key key)
+           ;;;(ssh-public-key-algorithm 'make-userauth-request/public-key key)
+           (ssh-public-key-algorithm key)
            key #f))
          ((username service algorithm key sig)
           ((p username service "publickey") algorithm key sig))))))
@@ -169,7 +170,8 @@
        (case-lambda
          ((username service key)
           ((p username service "publickey")
-           (ssh-public-key-algorithm 'make-userauth-request/public-key-query key)
+           ;;;(ssh-public-key-algorithm 'make-userauth-request/public-key-query key)
+           (ssh-public-key-algorithm key)
            key))
          ((username service algorithm key)
           ((p username service "publickey") algorithm key))))))
