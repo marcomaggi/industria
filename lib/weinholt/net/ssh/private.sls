@@ -23,6 +23,7 @@
 ;; Private parsing, formatting, public key algorithms, stuff
 
 (library (weinholt net ssh private)
+  (options visit-upon-loading)
   (export ssh-packet? ssh-packet-type ssh-packet
           parse-signature make-signature
           verify-signature hash-kex-data
