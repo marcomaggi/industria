@@ -1,158 +1,258 @@
 ## Process this file with automake to produce Makefile.in
 
-# This VFLAGS  setting is  to go  around an  error in  Vicare Scheme's
-# optimizer.   It can  be removed  once such  error is  fixed.  (Marco
-# Maggi; Sat Aug 10, 2013)
-#
-AM_DISTCHECK_CONFIGURE_FLAGS	= VFLAGS=-O0
-
-ACLOCAL_AMFLAGS		= -I autotools
+ACLOCAL_AMFLAGS		= -I meta/autotools
 AUTOMAKE_OPTIONS	= foreign
-SUBDIRS			= documentation tests
 EXTRA_DIST		= INSTALL configure.sh
-dist_doc_DATA		= README README.vicare-scheme \
-			  NEWS LICENSE.txt ANNOUNCE.vicare-scheme
 
-vicare_test_RULES	= test tests demo demos
+slsdir			= $(srcdir)/lib
+fasldir			= $(builddir)/lib
+testdir			= $(srcdir)/tests
+bundledlibsdir		= $(libdir)/vicare-scheme
+scriptsdir		= $(srcdir)/meta/scripts
 
-.PHONY: $(vicare_test_RULES)
+CLEANFILES		=
+MAINTAINERCLEANFILES	=
+BUILT_SOURCES		=
 
-$(vicare_test_RULES):
-	cd tests ; $(MAKE) $(@)
+#page
+#### documentation
+
+dist_doc_DATA			= README.vicare-scheme README LICENSE.txt
+AM_MAKEINFOFLAGS		= --no-split
+info_TEXINFOS			= documentation/industria.texinfo
+doc_industria_TEXINFOS		= \
+	documentation/binfmt.texinfo		\
+	documentation/compression.texinfo	\
+	documentation/crypto.texinfo		\
+	documentation/demos.texinfo		\
+	documentation/disassembler.texinfo	\
+	documentation/net-ssh.texinfo		\
+	documentation/net.texinfo		\
+	documentation/starting.texinfo		\
+	documentation/struct.texinfo		\
+	documentation/text.texinfo		\
+	documentation/types.texinfo
+
+#page
+#### libraries
+
+VICARE_COMPILE_SOURCE_PATH	= $(fasldir):$(slsdir)
+VICARE_COMPILE_LIBRARY_PATH	= $(fasldir):$(VICARE_LIBRARY_PATH)
+VICARE_COMPILE_LD_PATH		= $(builddir)/.libs:$(LD_LIBRARY_PATH)
+VICARE_COMPILE_DYLD_PATH	= $(builddir)/.libs:$(DYLD_LIBRARY_PATH)
+
+VICARE_COMPILE_ENV	= \
+	VICARE_SOURCE_PATH=$(VICARE_COMPILE_SOURCE_PATH);	export VICARE_SOURCE_PATH;	\
+	VICARE_LIBRARY_PATH=$(VICARE_COMPILE_LIBRARY_PATH);	export VICARE_LIBRARY_PATH;	\
+	LD_LIBRARY_PATH=$(VICARE_COMPILE_LD_PATH);		export LD_LIBRARY_PATH;		\
+	DYLD_LIBRARY_PATH=$(VICARE_COMPILE_DYLD_PATH);		export DYLD_LIBRARY_PATH;
+VICARE_COMPILE_FLAGS	= $(AX_VFLAGS) $(VFLAGS) \
+			  --library-locator compile-time --build-directory $(fasldir)
+VICARE_COMPILE_RUN	= $(VICARE_COMPILE_ENV) $(VICARE) $(VICARE_COMPILE_FLAGS)
+
+FASL_PREREQUISTES	= $(lib_LTLIBRARIES) $(libvicare_industria_la_LINK)
 
 ## --------------------------------------------------------------------
 
-libvicaredir	= $(libdir)/vicare-scheme
-libvicare2dir	= $(libdir)/vicare-scheme
+EXTRA_DIST += \
+	lib/libraries.scm				\
+	$(scriptsdir)/build-makefile-rules.sps
 
-dist_pkglibexec_SCRIPTS		= compile-all.sps
+VICARE_BUILD_DEPS	= \
+	$(VICARE_COMPILE_RUN) \
+		--source-path $(testdir) --option print-loaded-libraries --library-locator source \
+		--r6rs-script $(scriptsdir)/build-makefile-rules.sps --
 
-# These files are hand-written.
-nobase_dist_libvicare_DATA = \
-	weinholt/archive/tar.sls				\
-	weinholt/assembler/elf.sls				\
-	weinholt/assembler/x86-misc.sls				\
-	weinholt/assembler/x86-operands.sls			\
-	weinholt/assembler/x86.sls				\
-	weinholt/binfmt/elf.sls					\
-	weinholt/bytevectors.sls				\
-	weinholt/compression/adler-32.sls			\
-	weinholt/compression/bitstream.sls			\
-	weinholt/compression/gzip.sls				\
-	weinholt/compression/huffman.sls			\
-	weinholt/compression/inflate.sls			\
-	weinholt/compression/lzma2.sls				\
-	weinholt/compression/lzma.sls				\
-	weinholt/compression/sliding-buffer.sls			\
-	weinholt/compression/xz.sls				\
-	weinholt/compression/zip/extra.ikarus.sls		\
-	weinholt/compression/zip/extra.sls			\
-	weinholt/compression/zip/extra.ypsilon.sls		\
-	weinholt/compression/zip.sls				\
-	weinholt/compression/zlib.sls				\
-	weinholt/crypto/aes/private.sls				\
-	weinholt/crypto/aes.sls					\
-	weinholt/crypto/arcfour.sls				\
-	weinholt/crypto/blowfish.sls				\
-	weinholt/crypto/crc.sls					\
-	weinholt/crypto/des.sls					\
-	weinholt/crypto/dh.sls					\
-	weinholt/crypto/dsa.sls					\
-	weinholt/crypto/ec/dsa.sls				\
-	weinholt/crypto/ec.sls					\
-	weinholt/crypto/entropy.sls				\
-	weinholt/crypto/hmac.sls				\
-	weinholt/crypto/math.sls				\
-	weinholt/crypto/md5.sls					\
-	weinholt/crypto/openpgp.sls				\
-	weinholt/crypto/password.sls				\
-	weinholt/crypto/rsa.sls					\
-	weinholt/crypto/sha-1.sls				\
-	weinholt/crypto/sha-2.sls				\
-	weinholt/crypto/ssh-public-key.sls			\
-	weinholt/crypto/uuid.sls				\
-	weinholt/crypto/x509.sls				\
-	weinholt/disassembler/i8080.sls				\
-	weinholt/disassembler/m68hc12.sls			\
-	weinholt/disassembler/mips.sls				\
-	weinholt/disassembler/private.sls			\
-	weinholt/disassembler/x86-opcodes.sls			\
-	weinholt/disassembler/x86.sls				\
-	weinholt/net/buffer.sls					\
-	weinholt/net/dns/numbers.sls				\
-	weinholt/net/dns/private.sls				\
-	weinholt/net/dns.sls					\
-	weinholt/net/dns/types.sls				\
-	weinholt/net/irc/fish.sls				\
-	weinholt/net/irc.sls					\
-	weinholt/net/otr.sls					\
-	weinholt/net/ssh/algorithms.sls				\
-	weinholt/net/ssh/connection.sls				\
-	weinholt/net/ssh/kex-dh-gex.sls				\
-	weinholt/net/ssh/kexdh.sls				\
-	weinholt/net/ssh/private.sls				\
-	weinholt/net/ssh.sls					\
-	weinholt/net/ssh/transport.sls				\
-	weinholt/net/ssh/userauth.sls				\
-	weinholt/net/tcp.chezscheme.sls				\
-	weinholt/net/tcp.guile.sls				\
-	weinholt/net/tcp.ikarus.sls				\
-	weinholt/net/tcp.ironscheme.sls				\
-	weinholt/net/tcp.larceny.sls				\
-	weinholt/net/tcp.mosh.sls				\
-	weinholt/net/tcp.mzscheme.sls				\
-	weinholt/net/tcp.sagittarius.sls			\
-	weinholt/net/tcp.sls					\
-	weinholt/net/tcp.vicare.sls				\
-	weinholt/net/tcp.ypsilon.sls				\
-	weinholt/net/tls/algorithms.sls				\
-	weinholt/net/tls/simple.sls				\
-	weinholt/net/tls.sls					\
-	weinholt/struct/der.sls					\
-	weinholt/struct/pack-aux.sls				\
-	weinholt/struct/pack.sls				\
-	weinholt/text/base64.sls				\
-	weinholt/text/hexdump.sls				\
-	weinholt/text/internet.sls				\
-	weinholt/text/punycode.sls				\
-	weinholt/text/random-art.sls				\
-	weinholt/text/strings.sls
+.PHONY: dependencies
+
+dependencies:
+	$(MKDIR_P) lib
+	$(VICARE_BUILD_DEPS) $(slsdir)/libraries.scm >$(slsdir)/dependencies.make
+
+# NOTE This  INCLUDE directive is  processed by Automake.   To specify
+# the  pathname  of the  include  file:  we  can use  only  predefined
+# makefile variables like "top_srcdir"; we cannot use custom variables
+# defined by this very makefile.
+include $(top_srcdir)/lib/dependencies.make
+
+## --------------------------------------------------------------------
+
+.PHONY: clean-fasl
+
+clean-fasl:
+	find $(fasldir)        -name \*.fasl -execdir rm -v '{}' ';'
+	find $(builddir)/tests -name \*.fasl -execdir rm -v '{}' ';'
 
 #page
-#### generation of fasl files under the build directory
+#### running the test suite: test files selection
 
-VICARE_FASL_DIRECTORY		= $(builddir)/fasl
-VICARE_COMPILE_LIBRARY_PATH	= $(builddir):$(srcdir):$(VICARE_LIBRARY_PATH)
-VICARE_COMPILE_FASL_PATH	= $(VICARE_FASL_DIRECTORY):$(VICARE_FASL_PATH)
+VICARE_INDUSTRIA_PLAIN_TESTS		= \
+	tests/aes.sps		\
+	tests/arcfour.sps	\
+	tests/base.sps		\
+	tests/blowfish.sps	\
+	tests/cpu12disasm.sps	\
+	tests/crc.sps		\
+	tests/der.sps		\
+	tests/des.sps		\
+	tests/dh.sps		\
+	tests/dns.sps		\
+	tests/dsa.sps		\
+	tests/ecdsa.sps		\
+	tests/gzip.sps		\
+	tests/hmac.sps		\
+	tests/huffman.sps	\
+	tests/ipaddrs.sps	\
+	tests/irc.sps		\
+	tests/md5.sps		\
+	tests/otr.sps		\
+	tests/pack.sps		\
+	tests/password.sps	\
+	tests/punycode.sps	\
+	tests/sha-1.sps		\
+	tests/sha-256.sps	\
+	tests/sha-512.sps	\
+	tests/ssh-kex.sps	\
+	tests/uuid.sps		\
+	tests/x509.sps		\
+	tests/x86asm.sps	\
+	tests/x86disasm.sps	\
+	tests/zlib.sps
 
-# The variable "VFLAGS" is for the user  to be set on the command line
-# of "make" or "configure", for example:
+TESTS	= $(VICARE_INDUSTRIA_PLAIN_TESTS)
+
+EXTRA_DIST += \
+	$(VICARE_INDUSTRIA_PLAIN_TESTS)
+
+VICARE_SELECTED_TESTS		= $(testdir)/test-*$(file)*.sps
+VICARE_SELECTED_DEMOS		= $(testdir)/demo-*$(file)*.sps
+
+#page
+#### interface to "make check"
 #
-#   make VFLAGS="-g -O2 --print-loaded-libraries"
+# Read "Parallel Test Harness" in the documentation of GNU Automake to
+# understand how to use this interface for "make check".
 #
-VFLAGS		= @VFLAGS@
-VICARE		= @VICARE@
-VICARE_COMPILE_FLAGS	= --fasl-directory $(VICARE_FASL_DIRECTORY) $(VFLAGS)
-VICARE_COMPILE_ENV	= VICARE_LIBRARY_PATH=$(VICARE_COMPILE_LIBRARY_PATH)	\
-			  VICARE_FASL_PATH=$(VICARE_COMPILE_FASL_PATH)
-VICARE_COMPILE_RUN	= $(VICARE_COMPILE_ENV) $(VICARE) $(VICARE_COMPILE_FLAGS)
 
-VICARE_COMPILE_INST_FLAGS = --print-loaded-libraries
-VICARE_COMPILE_INST_ENV	= VICARE_LIBRARY_PATH=$(VICARE_LIBRARY_PATH)
-VICARE_COMPILE_INST_RUN	= $(VICARE_COMPILE_INST_ENV) $(VICARE) $(VICARE_COMPILE_INST_FLAGS)
+VICARE_CHECK_LIBRARY_PATH	= $(fasldir):$(VICARE_LIBRARY_PATH)
+VICARE_CHECK_SOURCE_PATH	= $(testdir):$(slsdir):$(fasldir)
+VICARE_CHECK_LD_PATH		= $(builddir)/.libs:$(LD_LIBRARY_PATH)
+VICARE_CHECK_DYLD_PATH		= $(builddir)/.libs:$(DYLD_LIBRARY_PATH)
 
-VICARE_COMPILE_OPTIONS	= --compile-dependencies $(srcdir)/compile-all.sps
+VICARE_CHECK_FLAGS		= $(AX_VFLAGS) $(VFLAGS) --r6rs-script
+VICARE_CHECK_ENV		= \
+	VICARE_CHECK_QUIET=yes;					export VICARE_CHECK_QUIET;	\
+	VICARE_SOURCE_PATH=$(VICARE_CHECK_SOURCE_PATH);		export VICARE_SOURCE_PATH;	\
+	VICARE_LIBRARY_PATH=$(VICARE_CHECK_LIBRARY_PATH);	export VICARE_LIBRARY_PATH;	\
+	CHECK_TEST_NAME=$(name);				export CHECK_TEST_NAME;		\
+	VICARE_SRC_DIR=$(srcdir)/tests;				export VICARE_SRC_DIR;		\
+	VICARE_BUILDDIR=$(builddir);				export VICARE_BUILDDIR;		\
+	LD_LIBRARY_PATH=$(VICARE_CHECK_LD_PATH);		export LD_LIBRARY_PATH;		\
+	DYLD_LIBRARY_PATH=$(VICARE_CHECK_DYLD_PATH);		export DYLD_LIBRARY_PATH;
 
-.PHONY : vfasl vfasl-installed
+# We must make sure that this ends with a semicolon!!!
+AM_TESTS_ENVIRONMENT	= $(VICARE_CHECK_ENV)
+TEST_EXTENSIONS		= .sps
+SPS_LOG_COMPILER	= $(VICARE)
+AM_SPS_LOG_FLAGS	= $(VICARE_CHECK_FLAGS)
 
-vfasl:
-	test -d $(VICARE_FASL_DIRECTORY) || $(MKDIR_P) $(VICARE_FASL_DIRECTORY)
-	$(VICARE_COMPILE_RUN) $(VICARE_COMPILE_OPTIONS)
+#page
+#### interface to "make instcheck"
 
-vfasl-installed:
-	$(VICARE_COMPILE_INST_RUN) $(VICARE_COMPILE_OPTIONS)
+VICARE_INSTCHECK_LIBRARY_PATH	= $(DESTDIR)$(bundledlibsdir):$(VICARE_LIBRARY_PATH)
+VICARE_INSTCHECK_SOURCE_PATH	= $(DESTDIR)$(bundledlibsdir):$(VICARE_SOURCE_PATH):$(testdir)
+VICARE_INSTCHECK_LD_PATH	= $(DESTDIR)$(libdir)
+VICARE_INSTCHECK_DYLD_PATH	= $(DESTDIR)$(libdir)
 
-clean-local:
-	-rm -rf $(VICARE_FASL_DIRECTORY)
+VICARE_INSTCHECK_FLAGS	= --option print-loaded-libraries $(AX_VFLAGS) $(VFLAGS)
+VICARE_INSTCHECK_ENV	= \
+	VICARE_LIBRARY_PATH=$(VICARE_INSTCHECK_LIBRARY_PATH);	export VICARE_LIBRARY_PATH;	\
+	VICARE_SOURCE_PATH=$(VICARE_INSTCHECK_SOURCE_PATH);	export VICARE_SOURCE_PATH;	\
+	LD_LIBRARY_PATH=$(VICARE_INSTCHECK_LD_PATH);		export LD_LIBRARY_PATH;		\
+	DYLD_LIBRARY_PATH=$(VICARE_INSTCHECK_DYLD_PATH);	export DYLD_LIBRARY_PATH;	\
+	VICARE_SRC_DIR=$(srcdir)/tests;				export VICARE_SRC_DIR;		\
+	VICARE_CHECK_QUIET=no;					export VICARE_CHECK_QUIET;
+VICARE_INSTCHECK_RUN	= \
+	$(VICARE_INSTCHECK_ENV) $(VICARE) $(VICARE_INSTCHECK_FLAGS)
+
+installcheck-local:
+	@for f in $(TESTS); do $(VICARE_INSTCHECK_RUN) $(srcdir)/$$f; done
+
+#page
+#### running the test suite: customised test rules
+
+VICARE_TEST_SELECTED_TESTS		= $(testdir)/test-*$(file)*.sps
+VICARE_TEST_SELECTED_DEMOS		= $(testdir)/demo-*$(file)*.sps
+
+VICARE_TEST_LIBRARY_PATH		= $(fasldir):$(VICARE_LIBRARY_PATH)
+VICARE_TEST_SOURCE_PATH			= $(testdir):$(slsdir):$(fasldir)
+VICARE_TEST_LD_PATH			= $(builddir)/.libs:$(LD_LIBRARY_PATH)
+VICARE_TEST_DYLD_PATH			= $(builddir)/.libs:$(DYLD_LIBRARY_PATH)
+
+# Enable timing  of test files  execution.  We cannot include  this in
+# the separator because it needs  to be placed between the environment
+# variables and the actual command line.
+if WANT_TIME_TESTS
+VICARE_TIME_TESTS	= $(TIME_PROGRAM) -p
+endif
+
+VICARE_TEST_FLAGS	= $(AX_VFLAGS) $(VFLAGS) --r6rs-script
+VICARE_TEST_ENV		= \
+	VICARE_SOURCE_PATH=$(VICARE_TEST_SOURCE_PATH);		export VICARE_SOURCE_PATH;	\
+	VICARE_LIBRARY_PATH=$(VICARE_TEST_LIBRARY_PATH);	export VICARE_LIBRARY_PATH;	\
+	CHECK_TEST_NAME=$(name);				export CHECK_TEST_NAME;		\
+	VICARE_SRC_DIR=$(srcdir)/tests;				export VICARE_SRC_DIR;		\
+	VICARE_BUILDDIR=$(builddir);				export VICARE_BUILDDIR;		\
+	LD_LIBRARY_PATH=$(VICARE_TEST_LD_PATH);			export LD_LIBRARY_PATH;		\
+	DYLD_LIBRARY_PATH=$(VICARE_TEST_DYLD_PATH);		export DYLD_LIBRARY_PATH;
+VICARE_TEST_RUN		= $(VICARE_TEST_ENV) $(VICARE_TIME_TESTS) $(GDB) $(VICARE) $(VICARE_TEST_FLAGS)
+
+## --------------------------------------------------------------------
+
+.PHONY: test tests
+.PHONY: demo demos
+
+test tests:
+	@echo
+	@for f in $(VICARE_TEST_SELECTED_TESTS); do $(VICARE_TEST_RUN) $$f; done
+	@echo
+
+demo demos:
+	@echo
+	@for f in $(VICARE_TEST_SELECTED_DEMOS); do $(VICARE_TEST_RUN) $$f; done
+	@echo
+
+#page
+#### running vicare on the terminal from the build directory
+
+RLWRAP_TRAMPOLINE	= $(scriptsdir)/rlwrap-trampoline
+EXTRA_DIST		+= $(RLWRAP_TRAMPOLINE)
+
+VICARE_TERMINAL_LIBRARY_PATH	= $(fasldir):$(VICARE_LIBRARY_PATH)
+VICARE_TERMINAL_SOURCE_PATH	= $(slsdir)
+VICARE_TERMINAL_LD_PATH		= $(builddir)/.libs:$(LD_LIBRARY_PATH)
+VICARE_TERMINAL_DYLD_PATH	= $(builddir)/.libs:$(DYLD_LIBRARY_PATH)
+
+VICARE_TERMINAL_RUN_FLAGS	= $(AX_VFLAGS) $(VFLAGS)
+VICARE_TERMINAL_RUN_ENV		= \
+	VICARE_LIBRARY_PATH=$(VICARE_TERMINAL_LIBRARY_PATH);	export VICARE_LIBRARY_PATH;	\
+	VICARE_SOURCE_PATH=$(VICARE_TERMINAL_SOURCE_PATH);	export VICARE_SOURCE_PATH;	\
+	VICARE_SRC_DIR=$(srcdir);				export VICARE_SRC_DIR;		\
+	VICARE_BUILDDIR=$(builddir);				export VICARE_BUILDDIR;		\
+	LD_LIBRARY_PATH=$(VICARE_TERMINAL_LD_PATH);		export LD_LIBRARY_PATH;		\
+	DYLD_LIBRARY_PATH=$(VICARE_TERMINAL_DYLD_PATH);		export DYLD_LIBRARY_PATH;
+VICARE_TERMINAL_RUN	= $(VICARE_TERMINAL_RUN_ENV) $(VICARE) $(VICARE_TERMINAL_RUN_FLAGS)
+
+VICARE_TERMINAL_VIE_FLAGS	=  --raw-repl $(VICARE_TERMINAL_RUN_FLAGS)
+VICARE_TERMINAL_VIE_ENV	= $(VICARE_TERMINAL_RUN_ENV)
+VICARE_TERMINAL_VIE	= $(VICARE_TERMINAL_VIE_ENV) $(RLWRAP_TRAMPOLINE) $(VICARE) $(VICARE_TERMINAL_VIE_FLAGS)
+
+.PHONY: test-run test-vie
+
+test-run:
+	$(VICARE_TERMINAL_RUN)
+
+test-vie:
+	$(VICARE_TERMINAL_VIE)
 
 ### end of file
