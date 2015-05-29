@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2010, 2013 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2013, 2014 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -91,7 +91,7 @@ daOZBopKox5oXEbXK0gw
               (lp* (cdr Xq))))))))
 
 (define (run-test first-message)
-  (define Alice (make-otr-state key1 (+ 30 (random-integer 200)))) ;test fragmentation
+  (define Alice (make-otr-state key1 (+ 40 (random-integer 200)))) ;test fragmentation
   (define Bob (make-otr-state key2 +inf.0))
 
   (define dummy                         ;appease release-tool
