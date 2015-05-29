@@ -121,10 +121,13 @@ VICARE_INDUSTRIA_PLAIN_TESTS		= \
 
 TESTS	= $(VICARE_INDUSTRIA_PLAIN_TESTS)
 
+XFAIL_TESTS	= tests/x86asm.sps
+
+
 EXTRA_DIST += \
 	$(VICARE_INDUSTRIA_PLAIN_TESTS)
 
-VICARE_SELECTED_TESTS		= $(testdir)/test-*$(file)*.sps
+VICARE_SELECTED_TESTS		= $(testdir)/*$(file)*.sps
 VICARE_SELECTED_DEMOS		= $(testdir)/demo-*$(file)*.sps
 
 #page
@@ -181,7 +184,7 @@ installcheck-local:
 #page
 #### running the test suite: customised test rules
 
-VICARE_TEST_SELECTED_TESTS		= $(testdir)/test-*$(file)*.sps
+VICARE_TEST_SELECTED_TESTS		= $(testdir)/*$(file)*.sps
 VICARE_TEST_SELECTED_DEMOS		= $(testdir)/demo-*$(file)*.sps
 
 VICARE_TEST_LIBRARY_PATH		= $(fasldir):$(VICARE_LIBRARY_PATH)
