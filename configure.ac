@@ -20,7 +20,9 @@ AC_PROG_MKDIR_P
 
 VICARE_SCHEME
 VICARE_CHECK_LIBRARY([VICARE],
-  [(vicare (0 4 (>= 2015) (>= 5) (>= 28)))])
+  [(vicare (or (0 4 2015 5 (>= 28))
+               (0 4 2015 (>= 6))
+               (0 4 (>= 2016))))])
 AS_IF([test "$vicare_cv_schemelib_VICARE" = no],
   [AC_MSG_ERROR([wrong Vicare version],1)])
 
