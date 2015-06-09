@@ -15,7 +15,7 @@ fi
     --prefix="$prefix"                          \
     --libdir="$libdir"                          \
     --enable-time-tests                         \
-    VFLAGS=-O0					\
+    VFLAGS='-O2'				\
     "$@"
 
 ### end of file
