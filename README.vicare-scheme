@@ -19,12 +19,12 @@ Topics
 1. Introduction
 ---------------
 
-This  package  is just  a  repackaging  of Göran  Weinholt's
-Industria with GNU Autotools  for package infrastructure and
-verified support for Vicare Scheme.
+This package  is just a  repackaging of Göran Weinholt's  Industria with
+GNU Autotools for package infrastructure and verified support for Vicare
+Scheme.
 
-  *NOTE* The  maintainer of  this repackaging  supports only
-the GNU infrastructure and tests only on a GNU+Linux system.
+  *NOTE*  The  maintainer of  this  repackaging  supports only  the  GNU
+infrastructure and tests only on a GNU+Linux system.
 
 
 2. License
@@ -36,45 +36,52 @@ See the LICENSE.txt file.
 3. Install
 ----------
 
-To install Industria from a  proper release tarball, we must
-unpack the archive then do:
+Before  installing Industria  for  Vicare  Scheme make  sure  to have  a
+correctly installed Vicare Scheme.
 
-    $ cd industria-1.5
-    $ mkdir build
-    $ cd build
+  To install Industria from a proper release tarball, we must unpack the
+archive then do:
 
-to inspect the available configuration options we do:
+   $ cd industria-1.5
+   $ mkdir build
+   $ cd build
+   $ ../configure
+   $ make
+   $ make check
+   $ make install
 
-    $ ../configure --help
+notice  that  the  "configure"  script  is  prepared  to  enable  shared
+libraries  and  disable static  libraries:  this  must not  be  changed,
+because  the package  is  meant to  install  a C  shared  library to  be
+dynamically loaded.
 
-and then to build and install the package:
+  The Makefile is designed to allow parallel builds, so we can do:
 
-    $ ../configure [options]
-    $ make
-    $ make check
-    $ make install
+   $ make -j4 all && make -j4 check
 
-  The Makefile supports the  DESTDIR environment variable to
-install files in a temporary  location, example: to see what
-will happen:
+which,  on  a  4-core  CPU,   should  speed  up  building  and  checking
+significantly.
 
-    $ make -n install DESTDIR=/tmp/industria
+  To test what a rule will do use the "-n" option; example:
 
-to really do it:
+    $ make install -n
+
+  The "Makefile" supports the  "DESTDIR" environment variable to install
+the files under a temporary location; example:
 
     $ make install DESTDIR=/tmp/industria
 
-  If,  instead, we  have  checked out  a  revision from  the
-branch "vicare-scheme"  in the  repository, we will  have to
-first build the infrastructure running a script from the top
-source directory:
+  If, instead,  we have checked out  a revision from the  repository, we
+will have  to first build the  infrastructure running a script  from the
+top source directory:
 
    $ cd industria
    $ sh autogen.sh
 
-after this the procedure is the same as the one for building
-from  a  proper  release  tarball, but  we  have  to  enable
-maintainer mode:
+notice that "autogen.sh" will run the program "autoreconf".
+
+  After this the  procedure is the same  as the one for  building from a
+proper release tarball, but we have to enable maintainer mode:
 
     $ ../configure --enable-maintainer-mode [options]
     $ make
@@ -83,19 +90,21 @@ maintainer mode:
 
   Libraries are installed under the directory:
 
-		  $(libdir)/vicare-scheme
+			$(libdir)/vicare-scheme
 
-  After  installation, the  makefile rule  "vfasl-installed"
-will  precompile the  libraries installed  in the  hierarchy
-(weinholt ---);  the makefile  rule "installcheck"  will run
-the test suite against the installed libraries.
+on 32-bit platforms we should arrange such library to be:
 
-  The variable VFLAGS is available  to the user when running
-"configure" and  "make" to add  command line options  to the
-execution of  "vicare" when compiling libraries  and running
-tests; for example:
+		      $(prefix)/lib/vicare-scheme
 
-   $ make VFLAGS="-g -O2 --print-loaded-libraries"
+on 64-bit platforms we should arrange such library to be:
+
+		     $(prefix)/lib64/vicare-scheme
+
+  The variable VFLAGS is available  to the user when running "configure"
+and "make" to add command line options to the execution of "vicare" when
+compiling libraries and running tests; for example:
+
+   $ make VFLAGS="-g -O2 --option print-loaded-libraries"
 
 
 4. Usage
@@ -107,45 +116,49 @@ Read the documentation in Texinfo format.
 A. Credits
 ----------
 
-See  the  flie  LICENSE.txt  for the  list  of  authors  and
-contributors.
+See the flie LICENSE.txt for the list of authors and contributors.
 
 
 B. Bugs
 -------
 
-Bug  reports  about  Industria  should be  reported  to  the
-original site:
+Bug reports about Industria should be reported to the original site:
 
-	  <https://github.com/weinholt/industria>
+		<https://github.com/weinholt/industria>
 
-while issues  regarding repackaging  with the  GNU Autotools
-and support for Vicare Scheme must be reported to:
+while issues  regarding repackaging with  the GNU Autotools  and support
+for Vicare Scheme must be reported to:
 
-	 <https://github.com/marcomaggi/industria>
+	       <https://github.com/marcomaggi/industria>
 
 
 C. Resources
 ------------
 
-The latest  version of  Industria for  Vicare Scheme  can be
-found here:
+The latest version of Industria for Vicare Scheme can be found here:
 
-	 <http://github.com/marcomaggi/industria/>
+	 <https://bitbucket.org/marcomaggi/industria/downloads>
 
-in the  "vicare-scheme" branch.  The original  Industria can
-be found here:
+development takes place at:
 
-	      <https://weinholt.se/industria/>
-	  <https://github.com/weinholt/industria>
+	       <http://github.com/marcomaggi/industria/>
+
+in the "vicare-scheme" branch, and as backup at:
+
+	     <https://bitbucket.org/marcomaggi/industria/>
+
+  The original Industria can be found here:
+
+		    <https://weinholt.se/industria/>
+		<https://github.com/weinholt/industria>
 
   The GNU Project software can be found here:
 
-		   <http://www.gnu.org/>
+			 <http://www.gnu.org/>
 
   Vicare Scheme is available at:
 
-	 <http://marcomaggi.github.com/vicare.html>
+	       <http://marcomaggi.github.io/vicare.html>
 
 
 ### end of file
