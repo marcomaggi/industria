@@ -20,7 +20,7 @@ BUILT_SOURCES		=
 dist_doc_DATA			= README.vicare-scheme README LICENSE.txt
 AM_MAKEINFOFLAGS		= --no-split
 info_TEXINFOS			= documentation/industria.texinfo
-doc_industria_TEXINFOS		= \
+documentation_industria_TEXINFOS= \
 	documentation/binfmt.texinfo		\
 	documentation/compression.texinfo	\
 	documentation/crypto.texinfo		\
