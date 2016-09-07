@@ -1,6 +1,6 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
-;; Copyright © 2008, 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012, 2013, 2016 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -843,6 +843,9 @@
 
 (check (test/error 64 #vu8(#x67 #x48 #x8B #x05 #xF8 #xFF #xFF #xFF))
        => '(mov rax (mem64+ eip -8)))
+
+(check (test/error 16 #vu8(#x67 #x66 #x89 #x2D #x1C #x90 #x00 #x00))
+       => '(mov (mem32+ #x901C) ebp))
 
 ;;; XOP
 

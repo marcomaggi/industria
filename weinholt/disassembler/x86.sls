@@ -1,6 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Disassembler for the Intel x86-16/32/64 instruction set.
-;; Copyright © 2008, 2009, 2010, 2012, 2013 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2008, 2009, 2010, 2012, 2013, 2016 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -424,7 +424,7 @@ translate-displacement."
                      ;; FIXME: sign-extend these instead of giving
                      ;; them as negative numbers? At least if they are
                      ;; large enough...
-                     (if (or (fx=? mode 32) sib?)
+                     (if (or (not (eqv? mode 64)) sib?)
                          (list (get-s32/collect port collect (tag disp)))
                          (list (if (fx=? address-size 64) 'rip 'eip)
                                (get-s32/collect port collect (tag disp)))))
