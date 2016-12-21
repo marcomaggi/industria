@@ -1,7 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; release-tool - Release tool for Industria
-;; Copyright © 2010, 2011, 2012 Göran Weinholt <goran@weinholt.se>
+;; Copyright © 2010, 2011, 2012, 2016 Göran Weinholt <goran@weinholt.se>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -44,7 +44,6 @@
 
 (define *private-libraries*
   '((weinholt crypto aes private)
-    (weinholt disassembler private)
     (weinholt net ssh algorithms)
     (weinholt net ssh kex-dh-gex)
     (weinholt net ssh kexdh)
@@ -54,8 +53,6 @@
 
 (define *released-libraries*
   '((weinholt archive tar)
-    ;;(weinholt assembler x86)
-    (weinholt binfmt elf)
     (weinholt bytevectors)
     (weinholt compression adler-32)
     (weinholt compression inflate)
@@ -82,10 +79,6 @@
     (weinholt crypto sha-2)
     (weinholt crypto ssh-public-key)
     (weinholt crypto x509)
-    (weinholt disassembler i8080)
-    (weinholt disassembler m68hc12)
-    (weinholt disassembler mips)
-    (weinholt disassembler x86)
     ;;(weinholt net dns)
     (weinholt net irc fish)
     (weinholt net irc)
@@ -529,9 +522,9 @@
 (define description
   "Industria is a collection of portable R6RS Scheme libraries for
 cryptography (AES, HMAC, SHA-1, SHA-2, RSA, DSA, ECDSA, etc.), zlib/xz
-decompression, disassemblers for various machine architectures,
-Off-The-Record messaging, bytevector pack/unpack syntax, TLS connections
-via custom binary ports, Secure Shell, and a few more things.")
+decompression, Off-The-Record messaging, bytevector pack/unpack
+syntax, TLS connections via custom binary ports, Secure Shell, and a
+few more things.")
 
 (define homepage "http://weinholt.se/industria/")
 
@@ -554,31 +547,8 @@ via custom binary ports, Secure Shell, and a few more things.")
              (homepage ,homepage)
              (libraries "weinholt"))))
 
-;; This file should be named MANIFEST
-(define (ucl-manifest version)
-  (define (print . x) (for-each write x) (newline))
-  (format #t ";; UCL package, see http://ucl.willdonnelly.net/~%")
-  (print '(package industria))
-  (print `(version ,@(map string->number (string-split version #\.))))
-  (print '(category "Cryptography" "Compression"))
-  (print `(synopsis ,synopsis))
-  (print `(description ,description))
-  (print '(author "Göran Weinholt"))
-  (print '(email "goran@weinholt.se"))
-  (print `(url ,homepage))
-  (print '(license MIT))
-  (print '(license-file "LICENSE.txt"))
-  (print `(code ,@(map file-path release-libraries)))
-  ;;(print `(symlink (,(string-append "industria-" version "/weinholt") . "weinholt")))
-  ;; TODO: missing SRFI dependencies
-  (print `(depends))
-  (print `(schemes ,@*implementations*)))
-
 (define package-files
-  (append (if (file-exists? "pkg-list.scm") '("pkg-list.scm") '())
-          ;; XXX: UCL can't use the release tarball because UCL
-          ;; packages are tarbombs.
-          #;(if (file-exists? "MANIFEST") '("MANIFEST") '())))
+  (append (if (file-exists? "pkg-list.scm") '("pkg-list.scm") '())))
 
 ;;; Invocation
 
@@ -600,13 +570,12 @@ via custom binary ports, Secure Shell, and a few more things.")
    ;; These files will not be included in the release.
    (list-unreleased))
   ((_ "dorodango" version) (dorodango-package-list version))
-  ((_ "ucl" version) (ucl-manifest version))
   ((name . _)
    (format (current-error-port)
            "Usage: ~a check-complete|list-srfis|run-tests|run-all-tests|list|list-unreleased~%"
            name)
    (format (current-error-port)
-           "Usage: ~a dorodango|ucl package-version~%"
+           "Usage: ~a dorodango package-version~%"
            name)
    (exit 1)))
 

@@ -10,7 +10,6 @@ installing the demos in the default program search path.
 @menu
 * checksig::     checksig -- verifies OpenPGP signature files
 * checksum::     checksum -- computes CRCs and message digests
-* fcdisasm::     fcdisasm -- full-color disassembler
 * honingsburk::  honingsburk -- simple Secure Shell honey pot
 * meircbot::     meircbot -- the minimum-effort irc bot
 * secsh-client:: secsh-client -- manually operated Secure Shell client
@@ -32,16 +31,6 @@ that made the signature.
 Compute the hash or CRC of a file. Give it an algorithm and filenames
 and off it goes. It also demonstrates the superior slowness of the
 hashing libraries.
-
-@node fcdisasm
-@section fcdisasm -- full-color disassembler
-The Full-Color Disassembler, which disassembles machine code and
-colors the bytes in the hexdump. This makes it easy to see how many
-bytes all the different parts of an instruction uses.
-
-Originally made for the x86 disassembler, so the hexdumps for other
-architectures might not be as nice. It now also supports HC12 and
-MIPS. It handles ELF files and assumes anything else is raw x86.
 
 @node honingsburk
 @section honingsburk -- simple Secure Shell honey pot
