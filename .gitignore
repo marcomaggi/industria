@@ -1,5 +1,3 @@
-*~
-<<<<<<< HEAD
 =*
 ,,*
 *.a
@@ -46,6 +44,3 @@ m4/
 autotools/
 compiled/
 meta/autotools/
-
-=======
->>>>>>> master
