@@ -1,5 +1,15 @@
 -*- mode: outline; coding: utf-8 -*-
 
+* Changes in version 2.0 (not released)
+
+** (weinholt assembler *): Removed
+** (weinholt binfmt elf): Removed
+** (weinholt disassembler *): Removed
+
+The machine code utilities have been moved to a separate project:
+
+https://github.com/weinholt/machine-code
+
 * Changes in version 1.5
 
 ** (weinholt net otr): Support for OTR version 3

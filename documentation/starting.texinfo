@@ -19,14 +19,8 @@ Releases are available at
 @url{https://weinholt.se/industria/}.
 @cindex release tarballs
 
-The development version of Industria is available in a Git
-repository. You can
-download the development version like this:
-@verbatim
-git clone http://weinholt.se/git/industria.git/
-@end verbatim
-Development snapshots are available at
-@url{http://weinholt.se/gitweb/}.
+The development version of Industria is available at GitHub
+@url{https://github.com/weinholt/industria/}:
 @cindex development snapshots
 
 You will also need a number of SRFI libraries. If your Scheme does not
@@ -76,30 +70,3 @@ with Ikarus:
 $ ikarus --r6rs-script example.sps "a grand scheme"
 A6FD66F0888EDCAC812D441EFE95E6C1
 @end verbatim
-
-
-@node Conflicting names
-@section Conflicting names
-In some places the same name is exported by two libraries, even though
-they have different bindings. Two disassemblers might both export a
-@code{get-instruction} procedure. In this case it is useful to use
-@code{prefix} when importing the libraries, like this:
-
-@lisp
-(import (rnrs)
-        (prefix (weinholt disassembler x86) x86:)
-        (prefix (weinholt disassembler arm) arm:))
-@end lisp
-
-Now the procedures will be called @code{x86:get-instruction} and
-@code{arm:get-instruction}. This method can also be useful for keeping
-track of which library a binding comes from. An alternative is to
-use @code{rename}:
-
-@lisp
-(import (rnrs)
-        (rename (weinholt disassembler x86) 
-                (get-instruction x86:dis))
-        (rename (weinholt disassembler arm) 
-                (get-instruction arm:dis)))
-@end lisp

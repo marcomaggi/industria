@@ -35,7 +35,7 @@ R<sup><small>6</small></sup>RS
 This manual is for the Industria libraries, a collection of
 @rnrs{} Scheme libraries.
 
-Copyright @copyright{} 2010, 2011, 2012, 2013 G@"oran Weinholt @email{goran@@weinholt.se}.
+Copyright @copyright{} 2010, 2011, 2012, 2013, 2016 G@"oran Weinholt @email{goran@@weinholt.se}.
 
 @quotation
 Permission is hereby granted, free of charge, to any person obtaining a
@@ -111,21 +111,16 @@ DEALINGS IN THE SOFTWARE.
 
 @menu
 @c * archive::            File archive utilities
-@c * assembler::          Machine code assemblers
-* binfmt::             Executable file format utilities
 * compression::        Data decompression
 * crypto::             Cryptographic primitives
-* disassembler::       Machine code disassemblers
 * net::                Network protocols
 * struct::             Binary structure utilities
 * text::               Textual structure utilities
 * types::              Data types and utilities
 @end menu
 
-@include binfmt.texinfo
 @include compression.texinfo
 @include crypto.texinfo
-@include disassembler.texinfo
 @include net.texinfo
 @include struct.texinfo
 @include text.texinfo
