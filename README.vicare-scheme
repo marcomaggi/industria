@@ -1,7 +1,7 @@
 ﻿-*- coding: utf-8-with-signature -*-
 
-			 Industria
-			 =========
+			       Industria
+			       =========
 
 
 Topics
@@ -42,7 +42,7 @@ correctly installed Vicare Scheme.
   To install Industria from a proper release tarball, we must unpack the
 archive then do:
 
-   $ cd industria-1.5
+   $ cd industria-2.0
    $ mkdir build
    $ cd build
    $ ../configure

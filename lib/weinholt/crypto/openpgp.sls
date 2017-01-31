@@ -1,5 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Copyright © 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Modified in 2017 by Marco Maggi <marco.maggi-ipsu@poste.it>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -250,7 +251,7 @@
                              (fxbit-field tag 0 6)
                              (fxbit-field tag 2 6))))
                (not (<= PACKET-SESSION-KEY type PACKET-MDC)))))))
-  
+
   (define (get-mpi p)
     (let* ((bitlen (get-unpack p "!S"))
            (bytelen (fxdiv (fx+ bitlen 7) 8)))
@@ -284,10 +285,12 @@
             (else                       ;Old packet format
              (let ((tag (fxbit-field tag 2 6))
                    (len (case (fxbit-field tag 0 2)
-                          ((0) (get-unpack p "!C"))
-                          ((1) (get-unpack p "!S"))
-                          ((2) (get-unpack p "!L"))
-                          ((3) #f))))
+                          ((0) (let ((X (get-unpack p "!C"))) X))
+                          ((1) (let ((X (get-unpack p "!S"))) X))
+                          ((2) (let ((X (get-unpack p "!L"))) X))
+                          ((3) #f)
+			  (else
+			   (error #f "invalid case")))))
                (get-data p tag len))))))
 
   (define (get-data p tag len)

@@ -2,7 +2,7 @@ dnl @configure_input@
 dnl
 
 AC_PREREQ([2.69])
-AC_INIT([Industria],[1.5a1],[marco.maggi-ipsu@poste.it],
+AC_INIT([Industria],[2.0d0],[marco.maggi-ipsu@poste.it],
   [industria],[https://github.com/marcomaggi/industria])
 AC_CONFIG_SRCDIR([lib])
 AC_CONFIG_MACRO_DIR([meta/autotools])
@@ -19,10 +19,7 @@ AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 
 VICARE_SCHEME
-VICARE_CHECK_LIBRARY([VICARE],
-  [(vicare (or (0 4 2015 6 (>= 9))
-               (0 4 2015 (>= 7))
-               (0 4 (>= 2016))))])
+VICARE_CHECK_LIBRARY([VICARE],[(vicare (0 4 2017 1 (>= 10)))])
 AS_IF([test "$vicare_cv_schemelib_VICARE" = no],
   [AC_MSG_ERROR([wrong Vicare version],1)])
 
@@ -37,8 +34,6 @@ AS_VAR_SET(AX_VFLAGS,["-O2 --verbose"])
 AS_VAR_SET_IF(VFLAGS,,[AS_VAR_SET(VFLAGS)])
 
 VICARE_OPTION_DEBUGGING_MODE
-dnl VICARE_OPTION_NAUSICAA([check])
-dnl AM_CONDITIONAL([WANT_NAUSICAA],[test x$vicare_with_nausicaa = xyes])
 
 AM_CONDITIONAL([WANT_VICARE_DEBUG],[test x$VICARE_DEBUG = xyes])
 AM_COND_IF([WANT_VICARE_DEBUG],[AS_VAR_SET(VFLAGS,"$VFLAGS -g")])

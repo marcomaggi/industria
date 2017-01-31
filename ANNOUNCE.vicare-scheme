@@ -1,4 +1,4 @@
-﻿Subject: [announce] Industria for Vicare revision 1.5a1
+﻿Subject: [announce] Industria for Vicare revision 2.0d0
 
 			  Industria for Vicare
 			  ====================
@@ -34,6 +34,15 @@ in the "vicare-scheme" branch, and as backup at:
 
 		    <https://weinholt.se/industria/>
 		<https://github.com/weinholt/industria>
+
+
+Notes for revision 2.0d0
+------------------------
+
+* Updated with upstream code.  See the  NEWS file about the 2.0 revision
+  development.
+
+* Ensures support for Vicare Scheme 0.4d1.
 
 
 Notes for revision 1.5a1

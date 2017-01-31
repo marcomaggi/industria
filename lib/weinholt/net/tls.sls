@@ -1,5 +1,6 @@
 ;; -*- mode: scheme; coding: utf-8 -*-
 ;; Copyright © 2009, 2010, 2012 Göran Weinholt <goran@weinholt.se>
+;; Modified by in 2017 Marco Maggi <marco.maggi-ipsu@poste.it>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -803,7 +804,7 @@
                     "an unknown handshake type arrived" type)))))
 
   (define (get-tls-handshake-server-key-exchange conn b length)
-    (define who get-tls-handshake-server-key-exchange)
+    (define who 'get-tls-handshake-server-key-exchange)
     ;; The server wants to use DHE key exchange.
     (define (get-int p)
       (bytevector->uint (get-bytevector-n p (get-unpack p "!S"))))
@@ -853,7 +854,7 @@
              (tls-conn-server-DH-p-set! conn p)
              (tls-conn-server-DH-g-set! conn g)
              (tls-conn-server-DH-Ys-set! conn Ys)))))
-      ((rsa dh_dss dh_rsa) #f)
+      ((rsa dh_dss dh_rsa) (values))
       (else
        (error who "You forgot to put in the new key exchange algorithm!"
               (cs-kex (tls-conn-next-cipher conn))))))

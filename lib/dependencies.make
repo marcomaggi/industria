@@ -16,126 +16,6 @@ endif
 EXTRA_DIST += lib/weinholt/archive/tar.sls
 CLEANFILES += lib/weinholt/archive/tar.fasl
 
-lib/weinholt/assembler/elf.fasl: \
-		lib/weinholt/assembler/elf.sls \
-		lib/weinholt/binfmt/elf.fasl \
-		lib/weinholt/struct/pack.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_assembler_elf_fasldir = $(bundledlibsdir)/weinholt/assembler
-lib_weinholt_assembler_elf_slsdir  = $(bundledlibsdir)/weinholt/assembler
-nodist_lib_weinholt_assembler_elf_fasl_DATA = lib/weinholt/assembler/elf.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_assembler_elf_sls_DATA = lib/weinholt/assembler/elf.sls
-endif
-EXTRA_DIST += lib/weinholt/assembler/elf.sls
-CLEANFILES += lib/weinholt/assembler/elf.fasl
-
-lib/weinholt/binfmt/elf.fasl: \
-		lib/weinholt/binfmt/elf.sls \
-		lib/weinholt/struct/pack.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_binfmt_elf_fasldir = $(bundledlibsdir)/weinholt/binfmt
-lib_weinholt_binfmt_elf_slsdir  = $(bundledlibsdir)/weinholt/binfmt
-nodist_lib_weinholt_binfmt_elf_fasl_DATA = lib/weinholt/binfmt/elf.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_binfmt_elf_sls_DATA = lib/weinholt/binfmt/elf.sls
-endif
-EXTRA_DIST += lib/weinholt/binfmt/elf.sls
-CLEANFILES += lib/weinholt/binfmt/elf.fasl
-
-lib/weinholt/struct/pack.fasl: \
-		lib/weinholt/struct/pack.sls \
-		lib/weinholt/struct/pack-aux.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_struct_pack_fasldir = $(bundledlibsdir)/weinholt/struct
-lib_weinholt_struct_pack_slsdir  = $(bundledlibsdir)/weinholt/struct
-nodist_lib_weinholt_struct_pack_fasl_DATA = lib/weinholt/struct/pack.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_struct_pack_sls_DATA = lib/weinholt/struct/pack.sls
-endif
-EXTRA_DIST += lib/weinholt/struct/pack.sls
-CLEANFILES += lib/weinholt/struct/pack.fasl
-
-lib/weinholt/struct/pack-aux.fasl: \
-		lib/weinholt/struct/pack-aux.sls \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_struct_pack_aux_fasldir = $(bundledlibsdir)/weinholt/struct
-lib_weinholt_struct_pack_aux_slsdir  = $(bundledlibsdir)/weinholt/struct
-nodist_lib_weinholt_struct_pack_aux_fasl_DATA = lib/weinholt/struct/pack-aux.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_struct_pack_aux_sls_DATA = lib/weinholt/struct/pack-aux.sls
-endif
-EXTRA_DIST += lib/weinholt/struct/pack-aux.sls
-CLEANFILES += lib/weinholt/struct/pack-aux.fasl
-
-lib/weinholt/assembler/x86-misc.fasl: \
-		lib/weinholt/assembler/x86-misc.sls \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_assembler_x86_misc_fasldir = $(bundledlibsdir)/weinholt/assembler
-lib_weinholt_assembler_x86_misc_slsdir  = $(bundledlibsdir)/weinholt/assembler
-nodist_lib_weinholt_assembler_x86_misc_fasl_DATA = lib/weinholt/assembler/x86-misc.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_assembler_x86_misc_sls_DATA = lib/weinholt/assembler/x86-misc.sls
-endif
-EXTRA_DIST += lib/weinholt/assembler/x86-misc.sls
-CLEANFILES += lib/weinholt/assembler/x86-misc.fasl
-
-lib/weinholt/assembler/x86-operands.fasl: \
-		lib/weinholt/assembler/x86-operands.sls \
-		lib/weinholt/assembler/x86-misc.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_assembler_x86_operands_fasldir = $(bundledlibsdir)/weinholt/assembler
-lib_weinholt_assembler_x86_operands_slsdir  = $(bundledlibsdir)/weinholt/assembler
-nodist_lib_weinholt_assembler_x86_operands_fasl_DATA = lib/weinholt/assembler/x86-operands.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_assembler_x86_operands_sls_DATA = lib/weinholt/assembler/x86-operands.sls
-endif
-EXTRA_DIST += lib/weinholt/assembler/x86-operands.sls
-CLEANFILES += lib/weinholt/assembler/x86-operands.fasl
-
-lib/weinholt/assembler/x86.fasl: \
-		lib/weinholt/assembler/x86.sls \
-		lib/weinholt/assembler/x86-operands.fasl \
-		lib/weinholt/assembler/x86-misc.fasl \
-		lib/weinholt/disassembler/x86-opcodes.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_assembler_x86_fasldir = $(bundledlibsdir)/weinholt/assembler
-lib_weinholt_assembler_x86_slsdir  = $(bundledlibsdir)/weinholt/assembler
-nodist_lib_weinholt_assembler_x86_fasl_DATA = lib/weinholt/assembler/x86.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_assembler_x86_sls_DATA = lib/weinholt/assembler/x86.sls
-endif
-EXTRA_DIST += lib/weinholt/assembler/x86.sls
-CLEANFILES += lib/weinholt/assembler/x86.fasl
-
-lib/weinholt/disassembler/x86-opcodes.fasl: \
-		lib/weinholt/disassembler/x86-opcodes.sls \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_x86_opcodes_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_x86_opcodes_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_x86_opcodes_fasl_DATA = lib/weinholt/disassembler/x86-opcodes.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_x86_opcodes_sls_DATA = lib/weinholt/disassembler/x86-opcodes.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/x86-opcodes.sls
-CLEANFILES += lib/weinholt/disassembler/x86-opcodes.fasl
-
 lib/weinholt/bytevectors.fasl: \
 		lib/weinholt/bytevectors.sls \
 		$(FASL_PREREQUISITES)
@@ -255,6 +135,35 @@ dist_lib_weinholt_compression_sliding_buffer_sls_DATA = lib/weinholt/compression
 endif
 EXTRA_DIST += lib/weinholt/compression/sliding-buffer.sls
 CLEANFILES += lib/weinholt/compression/sliding-buffer.fasl
+
+lib/weinholt/struct/pack.fasl: \
+		lib/weinholt/struct/pack.sls \
+		lib/weinholt/struct/pack-aux.fasl \
+		$(FASL_PREREQUISITES)
+	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
+
+lib_weinholt_struct_pack_fasldir = $(bundledlibsdir)/weinholt/struct
+lib_weinholt_struct_pack_slsdir  = $(bundledlibsdir)/weinholt/struct
+nodist_lib_weinholt_struct_pack_fasl_DATA = lib/weinholt/struct/pack.fasl
+if WANT_INSTALL_SOURCES
+dist_lib_weinholt_struct_pack_sls_DATA = lib/weinholt/struct/pack.sls
+endif
+EXTRA_DIST += lib/weinholt/struct/pack.sls
+CLEANFILES += lib/weinholt/struct/pack.fasl
+
+lib/weinholt/struct/pack-aux.fasl: \
+		lib/weinholt/struct/pack-aux.sls \
+		$(FASL_PREREQUISITES)
+	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
+
+lib_weinholt_struct_pack_aux_fasldir = $(bundledlibsdir)/weinholt/struct
+lib_weinholt_struct_pack_aux_slsdir  = $(bundledlibsdir)/weinholt/struct
+nodist_lib_weinholt_struct_pack_aux_fasl_DATA = lib/weinholt/struct/pack-aux.fasl
+if WANT_INSTALL_SOURCES
+dist_lib_weinholt_struct_pack_aux_sls_DATA = lib/weinholt/struct/pack-aux.sls
+endif
+EXTRA_DIST += lib/weinholt/struct/pack-aux.sls
+CLEANFILES += lib/weinholt/struct/pack-aux.fasl
 
 lib/weinholt/compression/lzma2.fasl: \
 		lib/weinholt/compression/lzma2.sls \
@@ -770,81 +679,6 @@ dist_lib_weinholt_crypto_x509_sls_DATA = lib/weinholt/crypto/x509.sls
 endif
 EXTRA_DIST += lib/weinholt/crypto/x509.sls
 CLEANFILES += lib/weinholt/crypto/x509.fasl
-
-lib/weinholt/disassembler/i8080.fasl: \
-		lib/weinholt/disassembler/i8080.sls \
-		lib/weinholt/disassembler/private.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_i8080_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_i8080_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_i8080_fasl_DATA = lib/weinholt/disassembler/i8080.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_i8080_sls_DATA = lib/weinholt/disassembler/i8080.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/i8080.sls
-CLEANFILES += lib/weinholt/disassembler/i8080.fasl
-
-lib/weinholt/disassembler/private.fasl: \
-		lib/weinholt/disassembler/private.sls \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_private_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_private_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_private_fasl_DATA = lib/weinholt/disassembler/private.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_private_sls_DATA = lib/weinholt/disassembler/private.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/private.sls
-CLEANFILES += lib/weinholt/disassembler/private.fasl
-
-lib/weinholt/disassembler/m68hc12.fasl: \
-		lib/weinholt/disassembler/m68hc12.sls \
-		lib/weinholt/disassembler/private.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_m68hc12_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_m68hc12_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_m68hc12_fasl_DATA = lib/weinholt/disassembler/m68hc12.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_m68hc12_sls_DATA = lib/weinholt/disassembler/m68hc12.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/m68hc12.sls
-CLEANFILES += lib/weinholt/disassembler/m68hc12.fasl
-
-lib/weinholt/disassembler/mips.fasl: \
-		lib/weinholt/disassembler/mips.sls \
-		lib/weinholt/disassembler/private.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_mips_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_mips_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_mips_fasl_DATA = lib/weinholt/disassembler/mips.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_mips_sls_DATA = lib/weinholt/disassembler/mips.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/mips.sls
-CLEANFILES += lib/weinholt/disassembler/mips.fasl
-
-lib/weinholt/disassembler/x86.fasl: \
-		lib/weinholt/disassembler/x86.sls \
-		lib/weinholt/disassembler/private.fasl \
-		lib/weinholt/disassembler/x86-opcodes.fasl \
-		$(FASL_PREREQUISITES)
-	$(VICARE_COMPILE_RUN) --output $@ --compile-library $<
-
-lib_weinholt_disassembler_x86_fasldir = $(bundledlibsdir)/weinholt/disassembler
-lib_weinholt_disassembler_x86_slsdir  = $(bundledlibsdir)/weinholt/disassembler
-nodist_lib_weinholt_disassembler_x86_fasl_DATA = lib/weinholt/disassembler/x86.fasl
-if WANT_INSTALL_SOURCES
-dist_lib_weinholt_disassembler_x86_sls_DATA = lib/weinholt/disassembler/x86.sls
-endif
-EXTRA_DIST += lib/weinholt/disassembler/x86.sls
-CLEANFILES += lib/weinholt/disassembler/x86.fasl
 
 lib/weinholt/net/buffer.fasl: \
 		lib/weinholt/net/buffer.sls \

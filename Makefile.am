@@ -21,11 +21,9 @@ dist_doc_DATA			= README.vicare-scheme README LICENSE.txt
 AM_MAKEINFOFLAGS		= --no-split
 info_TEXINFOS			= documentation/industria.texinfo
 documentation_industria_TEXINFOS= \
-	documentation/binfmt.texinfo		\
 	documentation/compression.texinfo	\
 	documentation/crypto.texinfo		\
 	documentation/demos.texinfo		\
-	documentation/disassembler.texinfo	\
 	documentation/net-ssh.texinfo		\
 	documentation/net.texinfo		\
 	documentation/starting.texinfo		\
