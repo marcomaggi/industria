@@ -1,6 +1,7 @@
 #!/usr/bin/env scheme-script
 ;; -*- mode: scheme; coding: utf-8 -*- !#
 ;; Copyright © 2008, 2009, 2010, 2011 Göran Weinholt <goran@weinholt.se>
+;; Modified in 2017 by Marco Maggi <marco.maggi-ipsu@poste.it>
 
 ;; Permission is hereby granted, free of charge, to any person obtaining a
 ;; copy of this software and associated documentation files (the "Software"),
@@ -37,7 +38,9 @@
                 (random-integer random)))
 
 (define x
-  (random-source-randomize! default-random-source))
+  (begin
+    (random-source-randomize! default-random-source)
+    #t))
 
 (define (check-pack expect fmt . values)
   (display "\nFormat: ") (write fmt)
@@ -99,7 +102,9 @@ the format string. Then see if pack/unpack gives the expected result."
                       ((little) '(#\<))
                       ((big) (if (zero? (random 2))
                                  '(#\!) '(#\>)))
-                      ((native) '(#\=))))
+                      ((native) '(#\=))
+		      (else
+		       (error #f "invalid case"))))
              (values '())
              (o 0))
       (let ((t (vector-ref types (random (vector-length types)))))

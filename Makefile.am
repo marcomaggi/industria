@@ -17,7 +17,7 @@ BUILT_SOURCES		=
 #page
 #### documentation
 
-dist_doc_DATA			= README.vicare-scheme README LICENSE.txt
+dist_doc_DATA			= README.vicare-scheme README.md LICENSE.txt
 AM_MAKEINFOFLAGS		= --no-split
 info_TEXINFOS			= documentation/industria.texinfo
 documentation_industria_TEXINFOS= \
@@ -89,7 +89,6 @@ VICARE_INDUSTRIA_PLAIN_TESTS		= \
 	tests/arcfour.sps	\
 	tests/base.sps		\
 	tests/blowfish.sps	\
-	tests/cpu12disasm.sps	\
 	tests/crc.sps		\
 	tests/der.sps		\
 	tests/des.sps		\
@@ -113,8 +112,6 @@ VICARE_INDUSTRIA_PLAIN_TESTS		= \
 	tests/ssh-kex.sps	\
 	tests/uuid.sps		\
 	tests/x509.sps		\
-	tests/x86asm.sps	\
-	tests/x86disasm.sps	\
 	tests/zlib.sps
 
 TESTS	= $(VICARE_INDUSTRIA_PLAIN_TESTS)
