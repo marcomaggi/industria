@@ -22,7 +22,7 @@ data created by gzip, zip and zlib.
 @node compression adler-32
 @subsection Mark Adler's Adler-32 checksum
 The @code{(weinholt compression adler-32)} library provides the
-Adler-32 checksum used in the ZLIB data format. @xref{compression zlib}. 
+Adler-32 checksum used in the ZLIB data format. @xref{compression zlib}.
 
 The procedures defined are similar to those made by @code{define-crc}
 in @ref{crypto crc}. The exported bindings are @code{adler-32},
@@ -57,7 +57,7 @@ and @code{port-position}.
 @deffn Procedure make-gzip-input-port binary-input-port id close-underlying-port?
 Returns a new port that can be used to read decompressed GZIP data
 from the @var{binary-input-port}. The @var{id} is the name of the
-returned port. 
+returned port.
 
 If @var{close-underlying-port?} is true then at the end of the GZIP
 stream the @var{binary-input-port} will be closed.
@@ -260,7 +260,7 @@ and @code{port-position}.
 @deffn Procedure make-xz-input-port binary-input-port id close-underlying-port?
 Returns a new port that can be used to read decompressed XZ data
 from the @var{binary-input-port}. The @var{id} is the name of the
-returned port. 
+returned port.
 
 To verify that the file was decompressed correctly it is necessary to
 close the port. On close the port will read all remaining data and
@@ -290,8 +290,7 @@ The @code{(weinholt compression zip)} library provides procedures for
 reading and writing ZIP archives.
 
 This library exports bindings that aren't easily identified as having
-to do with ZIP archives, so I suggest you use a prefix as described in
-@ref{Conflicting names}.
+to do with ZIP archives, so I suggest you use a prefix.
 
 The @code{(weinholt compression zip extra)} library is used to set and
 retrieve file attributes, look for absolute/relative path attacks,
